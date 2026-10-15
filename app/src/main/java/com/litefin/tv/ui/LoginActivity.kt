@@ -1,5 +1,6 @@
 package com.litefin.tv.ui
 
+import android.app.AlertDialog
 import android.content.Intent
 import android.os.Bundle
 import android.view.inputmethod.EditorInfo
@@ -9,16 +10,21 @@ import android.widget.TextView
 import com.litefin.tv.R
 import com.litefin.tv.api.Api
 import com.litefin.tv.api.ApiException
+import com.litefin.tv.data.Account
 import com.litefin.tv.data.Prefs
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 
 class LoginActivity : BaseActivity() {
     private lateinit var error: TextView
     private lateinit var button: Button
+    private lateinit var server: EditText
+    private var quickJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
-        val server = findViewById<EditText>(R.id.server)
+        server = findViewById(R.id.server)
         val user = findViewById<EditText>(R.id.user)
         val password = findViewById<EditText>(R.id.password)
         error = findViewById(R.id.error)
@@ -27,22 +33,67 @@ class LoginActivity : BaseActivity() {
         intent.getStringExtra("username")?.let { user.setText(it); password.requestFocus() } ?: user.requestFocus()
 
         val submit = {
-            var url = server.text.toString().trim()
-            if (!url.startsWith("http")) url = "http://$url"
+            val url = serverUrl()
             error.text = ""
             button.isEnabled = false
             launch {
-                val account = Api.login(url, user.text.toString().trim(), password.text.toString())
-                Prefs.saveAccount(account)
-                Prefs.current = account
-                startActivity(Intent(this@LoginActivity, HomeActivity::class.java)
-                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+                done(Api.login(url, user.text.toString().trim(), password.text.toString()))
             }
         }
+        findViewById<Button>(R.id.quick).setOnClickListener { quickConnect() }
         button.setOnClickListener { submit() }
         password.setOnEditorActionListener { _, id, _ ->
             if (id == EditorInfo.IME_ACTION_DONE) { submit(); true } else false
         }
+    }
+
+    private fun serverUrl(): String {
+        val url = server.text.toString().trim()
+        return if (url.startsWith("http")) url else "http://$url"
+    }
+
+    private fun done(account: Account) {
+        Prefs.saveAccount(account)
+        Prefs.current = account
+        startActivity(Intent(this, HomeActivity::class.java)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+    }
+
+    /** Shows a code to approve from another device (Jellyfin > profile > Quick Connect), then polls. */
+    private fun quickConnect() {
+        error.text = ""
+        quickJob?.cancel()
+        quickJob = launch {
+            if (!Api.quickConnectEnabled(serverUrl())) {
+                error.text = "La connexion rapide est désactivée sur ce serveur (Tableau de bord > Général)."
+                return@launch
+            }
+            val (secret, code) = Api.quickConnectInitiate()
+            val dialog = AlertDialog.Builder(this@LoginActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Connexion rapide")
+                .setMessage("Sur un appareil déjà connecté à Jellyfin, ouvrez votre profil > Connexion rapide et saisissez ce code :")
+                .setView(TextView(this@LoginActivity).apply {
+                    text = code.chunked(3).joinToString(" ")
+                    textSize = 44f
+                    setTypeface(typeface, android.graphics.Typeface.BOLD)
+                    setTextColor(android.graphics.Color.WHITE)
+                    gravity = android.view.Gravity.CENTER
+                    setPadding(0, (12 * dp).toInt(), 0, (12 * dp).toInt())
+                })
+                .setNegativeButton("Annuler", null)
+                .setOnDismissListener { quickJob?.cancel() }
+                .show()
+            while (!Api.quickConnectApproved(secret)) delay(3000)
+            val account = Api.quickConnectLogin(secret)
+            dialog.setOnDismissListener(null)
+            dialog.dismiss()
+            done(account)
+        }
+    }
+
+    override fun onDestroy() {
+        quickJob?.cancel()
+        super.onDestroy()
     }
 
     override fun onError(e: Exception) {

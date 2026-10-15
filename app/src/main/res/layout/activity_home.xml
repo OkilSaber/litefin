@@ -10,9 +10,8 @@
         android:orientation="horizontal" android:gravity="center_vertical">
         <TextView style="@style/Title" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:text="LiteFin" />
-        <TextView android:id="@+id/user" android:layout_width="0dp" android:layout_weight="1"
-            android:layout_height="wrap_content" android:layout_marginStart="14dp" android:textColor="@color/text2"
-            android:textSize="16sp" />
+        <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
+        <Button android:id="@+id/user" style="@style/Btn" />
         <Button android:id="@+id/settings" style="@style/Btn" android:layout_marginEnd="40dp" android:text="Réglages" />
     </LinearLayout>
 

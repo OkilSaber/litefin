@@ -20,7 +20,11 @@
         <EditText android:id="@+id/password" android:layout_width="match_parent" android:layout_height="wrap_content"
             android:hint="Mot de passe" android:fontFamily="sans-serif" android:inputType="textPassword" android:imeOptions="actionDone" android:singleLine="true" />
 
-        <Button android:id="@+id/login" style="@style/Btn" android:layout_marginTop="16dp" android:text="Se connecter" />
+        <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+            android:layout_marginTop="16dp" android:orientation="horizontal">
+            <Button android:id="@+id/login" style="@style/Btn" android:text="Se connecter" />
+            <Button android:id="@+id/quick" style="@style/Btn" android:text="Connexion rapide" />
+        </LinearLayout>
 
         <TextView android:id="@+id/error" android:layout_width="wrap_content" android:layout_height="wrap_content"
             android:layout_marginTop="12dp" android:textColor="#FFFF6B6B" />

@@ -62,10 +62,31 @@ object Api {
     suspend fun login(server: String, username: String, password: String): Account {
         Prefs.server = server
         val text = raw("POST", "/Users/AuthenticateByName", JSONObject().put("Username", username).put("Pw", password), token = null)
-        val res = JSONObject(text)
-        val u = res.getJSONObject("User")
-        return Account(u.getString("Id"), u.optString("Name", username), res.getString("AccessToken"), u.str("PrimaryImageTag"))
+        return account(JSONObject(text))
     }
+
+    private fun account(res: JSONObject): Account {
+        val u = res.getJSONObject("User")
+        return Account(u.getString("Id"), u.optString("Name"), res.getString("AccessToken"), u.str("PrimaryImageTag"))
+    }
+
+    // Quick Connect: the TV shows a code, the user approves it from another logged-in device.
+    suspend fun quickConnectEnabled(server: String): Boolean {
+        Prefs.server = server
+        return raw("GET", "/QuickConnect/Enabled", token = null).trim() == "true"
+    }
+
+    /** Returns (secret, code). */
+    suspend fun quickConnectInitiate(): Pair<String, String> {
+        val o = JSONObject(raw("POST", "/QuickConnect/Initiate", token = null))
+        return o.getString("Secret") to o.getString("Code")
+    }
+
+    suspend fun quickConnectApproved(secret: String): Boolean =
+        JSONObject(raw("GET", "/QuickConnect/Connect?secret=$secret", token = null)).optBoolean("Authenticated")
+
+    suspend fun quickConnectLogin(secret: String): Account =
+        account(JSONObject(raw("POST", "/Users/AuthenticateWithQuickConnect", JSONObject().put("Secret", secret), token = null)))
 
     /** Refreshes name/avatar of the current account. */
     suspend fun me(): Account {
@@ -92,10 +113,24 @@ object Api {
     suspend fun latest(parentId: String): List<Item> =
         Item.list(JSONArray(raw("GET", "/Items/Latest?userId=$user&ParentId=$parentId&Limit=20&$LIST_PARAMS")))
 
-    suspend fun items(parentId: String, start: Int, limit: Int, types: String?): Pair<List<Item>, Int> {
-        val t = if (types != null) "&IncludeItemTypes=$types&Recursive=true" else ""
-        val o = get("/Items?userId=$user&ParentId=$parentId&StartIndex=$start&Limit=$limit&SortBy=SortName&SortOrder=Ascending$t&$LIST_PARAMS")
+    suspend fun items(
+        parentId: String, start: Int, limit: Int, types: String?,
+        sortBy: String = "SortName", descending: Boolean = false, filter: String? = null, genreId: String? = null,
+    ): Pair<List<Item>, Int> {
+        val q = StringBuilder("/Items?userId=$user&ParentId=$parentId&StartIndex=$start&Limit=$limit")
+        q.append("&SortBy=").append(sortBy).append("&SortOrder=").append(if (descending) "Descending" else "Ascending")
+        if (types != null) q.append("&IncludeItemTypes=").append(types).append("&Recursive=true")
+        if (filter != null) q.append("&Filters=").append(filter)
+        if (genreId != null) q.append("&GenreIds=").append(genreId)
+        val o = get(q.append("&").append(LIST_PARAMS).toString())
         return Item.list(o) to o.optInt("TotalRecordCount")
+    }
+
+    /** Genres present in a library: (id, name). */
+    suspend fun genres(parentId: String, types: String?): List<Pair<String, String>> {
+        val t = types?.let { "&IncludeItemTypes=$it" } ?: ""
+        val a = get("/Genres?userId=$user&ParentId=$parentId$t&SortBy=SortName").optJSONArray("Items")
+        return a.map { it.getString("Id") to it.optString("Name") }
     }
 
     /** Full item: overview, people, genres, media streams, backdrop/logo tags. */

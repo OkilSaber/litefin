@@ -90,6 +90,10 @@ object Prefs {
         get() = sp.getInt("seekSeconds", 10)
         set(v) = sp.edit().putInt("seekSeconds", v).apply()
 
+    /** Sort/filter choice of a library view, remembered per library. */
+    fun libraryState(id: String): String? = sp.getString("lib_$id", null)
+    fun setLibraryState(id: String, state: String) = sp.edit().putString("lib_$id", state).apply()
+
     var maxBitrate: Int
         get() = sp.getInt("maxBitrate", 10_000_000)
         set(v) = sp.edit().putInt("maxBitrate", v).apply()

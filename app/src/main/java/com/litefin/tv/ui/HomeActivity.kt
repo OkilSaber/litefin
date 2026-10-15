@@ -5,6 +5,7 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
+import android.widget.Button
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -36,16 +37,23 @@ class HomeActivity : BaseActivity() {
             return
         }
         setContentView(R.layout.activity_home)
-        findViewById<TextView>(R.id.user).text = Prefs.current?.name
+        showUser(Prefs.current?.name)
         status = findViewById(R.id.status)
         val list = findViewById<RecyclerView>(R.id.rows)
         val settings = findViewById<View>(R.id.settings)
+        val user = findViewById<View>(R.id.user)
         settings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
-        // The button sits at the far right, so the default focus search finds nothing below it.
-        settings.setOnKeyListener { _, code, event ->
+        user.setOnClickListener {
+            startActivity(Intent(this, UsersActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK))
+        }
+        // The buttons sit at the far right, so the default focus search finds nothing below them.
+        val downToRows = View.OnKeyListener { _, code, event ->
             (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && rows.isNotEmpty())
                 .also { if (it) focusRowStart(list, 0) }
         }
+        settings.setOnKeyListener(downToRows)
+        user.setOnKeyListener(downToRows)
         list.layoutManager = object : LinearLayoutManager(this) {
             // Up/down between rows always lands on the first item of the target row,
             // instead of whatever card happens to be geometrically above/below.
@@ -74,7 +82,7 @@ class HomeActivity : BaseActivity() {
             // Keeps the saved name/avatar in sync with the server (and fills in migrated v1 logins).
             if (!loaded) Api.me().let { me -> if (me.name != Prefs.current?.name || me.imageTag != Prefs.current?.imageTag) {
                 Prefs.saveAccount(me)
-                findViewById<TextView>(R.id.user).text = me.name
+                showUser(me.name)
             } }
             val views = Api.views()
             val resume = async { Api.resume() }
@@ -98,6 +106,10 @@ class HomeActivity : BaseActivity() {
             list.scrollToPosition(0)
             list.post { list.requestFocus() }
         }
+    }
+
+    private fun showUser(name: String?) {
+        findViewById<Button>(R.id.user).text = "${name ?: ""}  ·  Changer"
     }
 
     private fun focusRowStart(list: RecyclerView, row: Int) {
