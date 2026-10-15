@@ -43,9 +43,21 @@ class HomeActivity : BaseActivity() {
         settings.setOnClickListener { startActivity(Intent(this, SettingsActivity::class.java)) }
         // The button sits at the far right, so the default focus search finds nothing below it.
         settings.setOnKeyListener { _, code, event ->
-            code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && list.requestFocus()
+            (code == KeyEvent.KEYCODE_DPAD_DOWN && event.action == KeyEvent.ACTION_DOWN && rows.isNotEmpty())
+                .also { if (it) focusRowStart(list, 0) }
         }
-        list.layoutManager = LinearLayoutManager(this)
+        list.layoutManager = object : LinearLayoutManager(this) {
+            // Up/down between rows always lands on the first item of the target row,
+            // instead of whatever card happens to be geometrically above/below.
+            override fun onInterceptFocusSearch(focused: View, direction: Int): View? {
+                if (direction != View.FOCUS_UP && direction != View.FOCUS_DOWN) return null
+                val row = list.findContainingViewHolder(focused) ?: return null
+                val target = row.bindingAdapterPosition + if (direction == View.FOCUS_DOWN) 1 else -1
+                if (target < 0) return null
+                if (target < rows.size) focusRowStart(list, target)
+                return focused
+            }
+        }
         list.setItemViewCacheSize(2)
         adapter = RowsAdapter()
         list.adapter = adapter
@@ -88,6 +100,23 @@ class HomeActivity : BaseActivity() {
         }
     }
 
+    private fun focusRowStart(list: RecyclerView, row: Int) {
+        val holder = list.findViewHolderForAdapterPosition(row) as? RowsAdapter.VH
+        if (holder == null) {
+            list.scrollToPosition(row)
+            list.post { focusRowStart(list, row) }
+            return
+        }
+        val cards = holder.list
+        val first = cards.findViewHolderForAdapterPosition(0)?.itemView
+        if (first != null) {
+            first.requestFocus()
+        } else {
+            cards.scrollToPosition(0)
+            cards.post { cards.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+        }
+    }
+
     private fun signature(list: List<Row>) =
         list.joinToString("|") { r -> r.title + ":" + r.items.joinToString(",") { it.id + "@" + it.positionTicks + it.played } }
 
@@ -114,10 +143,10 @@ class HomeActivity : BaseActivity() {
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val title: TextView = v.findViewById(R.id.title)
             val cards = CardAdapter({ open(it) }, { showMenu(it) })
+            val list: RecyclerView = v.findViewById(R.id.list)
 
             init {
-                val list = v.findViewById<RecyclerView>(R.id.list)
-                list.layoutManager = LinearLayoutManager(v.context, RecyclerView.HORIZONTAL, false).apply {
+                list.layoutManager = RowLayoutManager(v.context).apply {
                     recycleChildrenOnDetach = true
                 }
                 list.setRecycledViewPool(pool)

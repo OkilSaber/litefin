@@ -20,6 +20,7 @@ import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
 import com.litefin.tv.App
 import com.litefin.tv.R
@@ -79,6 +80,9 @@ class PlayerActivity : BaseActivity() {
         p.addListener(listener)
         view.player = p
         player = p
+        // Left/right on the focused progress bar use the same step (its default is 1/20 of the duration).
+        view.findViewById<DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
+            .setKeyTimeIncrement(Prefs.seekSeconds * 1000L)
 
         start(intent.getLongExtra("startTicks", 0L) / 10_000)
     }
@@ -297,7 +301,13 @@ class PlayerActivity : BaseActivity() {
             when (event.keyCode) {
                 KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { p.seekBack(); return true }
                 KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { p.seekForward(); return true }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> { view.showController(); return true }
+                // Center: instant play/pause. Pausing also shows the controls (they stay up while paused).
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    p.playWhenReady = !p.playWhenReady
+                    if (!p.playWhenReady) view.showController()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { view.showController(); return true }
             }
         }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && view.isControllerFullyVisible) {

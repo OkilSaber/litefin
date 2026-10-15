@@ -10,7 +10,6 @@ import android.view.ViewOutlineProvider
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.litefin.tv.App
 import com.litefin.tv.R
@@ -28,7 +27,7 @@ class UsersActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_users)
         list = findViewById(R.id.users)
-        list.layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        list.layoutManager = RowLayoutManager(this)
         list.adapter = Adapter()
         findViewById<Button>(R.id.settings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))

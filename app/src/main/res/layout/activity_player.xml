@@ -6,7 +6,7 @@
     android:background="@android:color/black">
 
     <androidx.media3.ui.PlayerView android:id="@+id/player" android:layout_width="match_parent"
-        android:layout_height="match_parent" app:controller_layout_id="@layout/player_controls"
+        android:layout_height="match_parent" app:controller_layout_id="@layout/player_controls" app:animation_enabled="false"
         app:show_buffering="always" app:use_artwork="false" app:surface_type="surface_view"
         app:show_timeout="4000" />
 

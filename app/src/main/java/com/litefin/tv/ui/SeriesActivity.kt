@@ -4,7 +4,6 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.litefin.tv.R
 import kotlinx.coroutines.Job
@@ -21,10 +20,10 @@ class SeriesActivity : BaseActivity() {
         setContentView(R.layout.activity_series)
         id = intent.getStringExtra("id")!!
         findViewById<RecyclerView>(R.id.seasons).apply {
-            layoutManager = LinearLayoutManager(this@SeriesActivity, RecyclerView.HORIZONTAL, false)
+            layoutManager = RowLayoutManager(this@SeriesActivity)
             adapter = seasons
         }
-        findViewById<RecyclerView>(R.id.cast).layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        findViewById<RecyclerView>(R.id.cast).layoutManager = RowLayoutManager(this)
         findViewById<Button>(R.id.resume).setOnClickListener { launch { play(seriesResumeTarget(id)) } }
     }
 

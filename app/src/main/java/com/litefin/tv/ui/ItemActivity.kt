@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.litefin.tv.R
 import kotlinx.coroutines.Job
@@ -31,10 +30,10 @@ class ItemActivity : BaseActivity() {
         setContentView(R.layout.activity_item)
         id = intent.getStringExtra("id")!!
         findViewById<RecyclerView>(R.id.next).apply {
-            layoutManager = LinearLayoutManager(this@ItemActivity, RecyclerView.HORIZONTAL, false)
+            layoutManager = RowLayoutManager(this@ItemActivity)
             adapter = next
         }
-        findViewById<RecyclerView>(R.id.cast).layoutManager = LinearLayoutManager(this, RecyclerView.HORIZONTAL, false)
+        findViewById<RecyclerView>(R.id.cast).layoutManager = RowLayoutManager(this)
         findViewById<Button>(R.id.resume).setOnClickListener { play(item, audio = audio, subtitle = subtitle) }
         findViewById<Button>(R.id.play).setOnClickListener { play(item, fromStart = true, audio = audio, subtitle = subtitle) }
         findViewById<Button>(R.id.audio).setOnClickListener { chooseAudio() }

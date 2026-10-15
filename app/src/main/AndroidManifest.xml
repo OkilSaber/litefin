@@ -14,6 +14,7 @@
         android:label="LiteFin"
         android:supportsRtl="false"
         android:theme="@style/AppTheme"
+        android:enableOnBackInvokedCallback="false"
         android:usesCleartextTraffic="true">
 
         <activity
