@@ -13,6 +13,7 @@
   <img alt="Media3" src="https://img.shields.io/badge/Media3-ExoPlayer-00A4DC">
   <img alt="APK" src="https://img.shields.io/badge/APK-~1.5%20Mo-informational">
   <img alt="Licence" src="https://img.shields.io/badge/licence-GPLv3-blue">
+  <a href="https://github.com/OkilSaber/litefin/releases/latest"><img alt="Release" src="https://img.shields.io/github/v/release/OkilSaber/litefin"></a>
 </p>
 
 <p align="center">
@@ -111,17 +112,18 @@ texte arrivent en WebVTT/SRT et c'est ExoPlayer qui les affiche.
 
 ## Installation
 
-Pas encore de release publiée : il faut compiler l'APK (JDK 17+ et SDK Android).
-
-```bash
-./gradlew assembleRelease
-```
-
-Puis l'installer sur la TV, après avoir activé le débogage ADB dans ses options développeur :
+Télécharge l'APK de la [dernière release](https://github.com/OkilSaber/litefin/releases/latest), puis installe-le sur la
+TV, après avoir activé le débogage ADB dans ses options développeur :
 
 ```bash
 adb connect <ip-de-la-tv>
-adb install -r app/build/outputs/apk/release/app-release.apk
+adb install -r LiteFin-1.0.0.apk
+```
+
+Pour compiler toi-même (JDK 17+ et SDK Android) :
+
+```bash
+./gradlew assembleRelease
 ```
 
 > L'APK release est signé avec la clé de debug, pour pouvoir l'installer directement.
