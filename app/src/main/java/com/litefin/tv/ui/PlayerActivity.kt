@@ -34,6 +34,7 @@ import com.litefin.tv.data.Prefs
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.withLock
 import org.json.JSONObject
 
 @OptIn(UnstableApi::class)
@@ -64,6 +65,16 @@ class PlayerActivity : BaseActivity() {
     private var forceTranscode = false
     private var started = false
     private var progressJob: Job? = null
+    /** Loads run one at a time, so a replaced session is always stopped (no orphan transcode). */
+    private val loadLock = kotlinx.coroutines.sync.Mutex()
+    /** Key whose ACTION_DOWN we consumed: its ACTION_UP must not reach PlayerView (it would show the controls). */
+    private var consumedKey = -1
+    private lateinit var ctlBar: View
+    private lateinit var ctlEnd: TextView
+    private lateinit var ctlChapter: TextView
+    private lateinit var ctlNextChapter: View
+    private var shownEndMinute = -1
+    private var shownChapter = -2
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -95,6 +106,7 @@ class PlayerActivity : BaseActivity() {
         // Small buffers: the device has very little RAM.
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(10_000, 30_000, 1_500, 3_000)
+            .setTargetBufferBytes(32 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
         val p = ExoPlayer.Builder(this)
@@ -110,6 +122,10 @@ class PlayerActivity : BaseActivity() {
         timeBar.setKeyTimeIncrement(Prefs.seekSeconds * 1000L)
         timeBar.nextFocusUpId = R.id.skip
         controller = view.findViewById(androidx.media3.ui.R.id.exo_controller)
+        ctlBar = controller.findViewById(R.id.ctl_bar)
+        ctlEnd = findViewById(R.id.ctl_end)
+        ctlChapter = findViewById(R.id.ctl_chapter)
+        ctlNextChapter = findViewById(R.id.ctl_next_chapter)
         preview = SeekPreview(scope, findViewById(R.id.preview), findViewById(R.id.preview_image), findViewById(R.id.preview_time),
             findViewById(R.id.preview_chapter))
         // Seeking (from the bar, or left/right while the controls are hidden) pauses and shows a preview
@@ -131,18 +147,16 @@ class PlayerActivity : BaseActivity() {
             }
         })
         launch {
-            preview.trickplay = Api.trickplay(itemId)
-            Log.i("LiteFin", "trickplay: " + (preview.trickplay?.let { "${it.width}x${it.height} every ${it.interval} ms" } ?: "none"))
-        }
-
-        launch {
-            chapters = Api.item(itemId).chapters.sortedBy { it.startMs }
+            val (list, trickplay) = Api.playerMeta(itemId)
+            chapters = list
+            preview.trickplay = trickplay
             // Markers on the bar for every chapter boundary (not the one starting at 0).
             val marks = chapters.map { it.startMs }.filter { it > 0 }
             if (marks.isNotEmpty()) view.setExtraAdGroupMarkers(marks.toLongArray(), BooleanArray(marks.size))
-            findViewById<View>(R.id.ctl_next_chapter).gone(chapters.isEmpty())
+            ctlNextChapter.gone(chapters.isEmpty())
             segments = Api.segments(itemId)
-            Log.i("LiteFin", "chapters: ${chapters.size}, segments: " + segments.joinToString { "${it.type} ${it.startMs / 1000}-${it.endMs / 1000}s" })
+            Log.i("LiteFin", "trickplay: ${trickplay != null}, chapters: ${chapters.size}, segments: " +
+                segments.joinToString { "${it.type} ${it.startMs / 1000}-${it.endMs / 1000}s" })
         }
         // One light ticker: skip pill, auto-hide fade, end time. Nothing heavier than a text update.
         launch {
@@ -188,17 +202,22 @@ class PlayerActivity : BaseActivity() {
         val p = player ?: return
         val pos = p.currentPosition
         val duration = p.duration
+        // Texts are only touched when they change: no allocation or relayout on most ticks.
         if (duration > 0) {
-            val remaining = ((duration - pos) / p.playbackParameters.speed).toLong()
-            val end = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MILLISECOND, remaining.toInt()) }
-            val text = "Fin à %02d:%02d".format(end.get(java.util.Calendar.HOUR_OF_DAY), end.get(java.util.Calendar.MINUTE))
-            findViewById<TextView>(R.id.ctl_end).let { if (it.text != text) it.text = text }
+            val endAt = System.currentTimeMillis() + ((duration - pos) / p.playbackParameters.speed).toLong()
+            val minute = endAt / 60_000
+            if (minute != shownEndMinute.toLong()) {
+                shownEndMinute = minute.toInt()
+                ctlEnd.text = "Fin à " + clockTime(endAt)
+            }
         }
-        val chapterView = findViewById<TextView>(R.id.ctl_chapter)
         val index = chapterAt(pos)
-        chapterView.gone(index < 0)
-        if (index >= 0) chapterView.text = "Chapitre ${index + 1} · ${chapters[index].name}"
-        findViewById<View>(R.id.ctl_next_chapter).gone(chapters.none { it.startMs > pos + 1000 })
+        if (index != shownChapter) {
+            shownChapter = index
+            ctlChapter.gone(index < 0)
+            if (index >= 0) ctlChapter.text = "Chapitre ${index + 1} · ${chapters[index].name}"
+            ctlNextChapter.gone(chapters.none { it.startMs > pos + 1000 })
+        }
     }
 
     private fun chapterAt(pos: Long): Int = chapters.indexOfLast { it.startMs <= pos }
@@ -226,8 +245,7 @@ class PlayerActivity : BaseActivity() {
         }
         val visible = seg != null && (controls || now() - skipShownAt < 8000)
         // Sit above the control bar when it is up.
-        val bar = controller.findViewById<View>(R.id.ctl_bar)
-        skip.translationY = if (controls) -(bar.height - 24 * dp) else 0f
+        skip.translationY = if (controls) -(ctlBar.height - 24 * dp) else 0f
         if (visible && skip.visibility != View.VISIBLE) {
             skip.alpha = 0f
             skip.visibility = View.VISIBLE
@@ -265,7 +283,11 @@ class PlayerActivity : BaseActivity() {
         // Tracks picked on the item page win over the server defaults.
         audioIndex = if (intent.hasExtra("audio")) intent.getIntExtra("audio", 0) else src.defaultAudio
         subtitleIndex = if (intent.hasExtra("subtitle")) intent.getIntExtra("subtitle", -1) else pickSubtitle(src)
-        load(startMs)
+        // Same tracks as the server's defaults and no burn-in: the first answer is already the right one.
+        val same = audioIndex == src.defaultAudio && subtitleIndex == (src.defaultSubtitle ?: -1) &&
+            !(Prefs.burnSubtitles && subtitleIndex >= 0)
+        Log.i("LiteFin", "playbackInfo: " + if (same) "reused first answer" else "second request (tracks/burn-in)")
+        load(startMs, if (same) info else null)
     }
 
     private fun pickSubtitle(src: MediaSource): Int {
@@ -301,14 +323,20 @@ class PlayerActivity : BaseActivity() {
         return o
     }
 
-    private suspend fun load(positionMs: Long) {
-        val p = player ?: return
+    private suspend fun load(positionMs: Long, reuse: PlaybackInfo? = null) = loadLock.withLock {
+        if (player == null) return@withLock
         message.visibility = View.GONE
-        session?.let { old -> App.background.launch { Api.stopEncoding(old.playSessionId) } }
 
         val burning = Prefs.burnSubtitles && subtitleIndex >= 0
         val direct = !burning && !forceTranscode
-        val info = Api.playbackInfo(itemId, request(audioIndex, subtitleIndex, positionMs, direct))
+        val info = reuse ?: Api.playbackInfo(itemId, request(audioIndex, subtitleIndex, positionMs, direct))
+        val p = player
+        if (p == null) {
+            // Closed while the server was preparing: don't leave that session encoding.
+            App.background.launch { Api.stopEncoding(info.playSessionId) }
+            return@withLock
+        }
+        session?.let { old -> App.background.launch { Api.stopEncoding(old.playSessionId) } }
         val src = info.source
         session = info
         source = src
@@ -449,6 +477,7 @@ class PlayerActivity : BaseActivity() {
                     "progress" -> Api.reportProgress(body)
                     else -> {
                         Api.reportStopped(body)
+                        App.dataVersion++
                         Api.stopEncoding(s.playSessionId)
                     }
                 }
@@ -460,7 +489,7 @@ class PlayerActivity : BaseActivity() {
     private fun showPreview(position: Long) {
         val duration = player?.duration?.takeIf { it > 0 } ?: return
         val chapter = chapterAt(position).let { if (it >= 0) chapters[it].name else null }
-        preview.show(position, position.toFloat() / duration, timeBar, controller.findViewById(R.id.ctl_bar), position - scrubFrom, chapter)
+        preview.show(position, position.toFloat() / duration, timeBar, ctlBar, position - scrubFrom, chapter)
     }
 
     /** Sends a seek key to the progress bar (showing the controls first), so both ways of seeking behave the same. */
@@ -481,38 +510,57 @@ class PlayerActivity : BaseActivity() {
             lastKey = now()
             cancelFade()
         }
+        if (event.action == KeyEvent.ACTION_UP && event.keyCode == consumedKey) {
+            consumedKey = -1
+            return true
+        }
         val p = player
-        if (p != null && event.action == KeyEvent.ACTION_DOWN) {
-            val code = event.keyCode
-            if (code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || code == KeyEvent.KEYCODE_MEDIA_REWIND) return seekWithBar(event)
-            if (!view.isControllerFullyVisible) {
-                when (code) {
-                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> return seekWithBar(event)
-                    // Center: skips the segment when the skip pill is up, else instant play/pause.
-                    // Pausing also shows the controls (they stay up while paused).
-                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                        if (skip.visibility == View.VISIBLE && skip.tag == null) {
-                            skipCurrentSegment()
-                            return true
-                        }
-                        p.playWhenReady = !p.playWhenReady
-                        if (!p.playWhenReady) view.showController()
-                        return true
-                    }
-                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { view.showController(); return true }
-                }
-            } else if ((code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) && currentFocus === timeBar) {
-                // Center on the bar: apply a pending seek right away, then play/pause.
-                if (scrubbing) timeBar.onKeyDown(code, event)
-                p.playWhenReady = !p.playWhenReady
-                return true
-            }
+        if (p != null && event.action == KeyEvent.ACTION_DOWN && handleKey(p, event)) {
+            consumedKey = event.keyCode
+            return true
         }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && view.isControllerFullyVisible) {
             view.hideController()
+            consumedKey = KeyEvent.KEYCODE_BACK
             return true
         }
         return super.dispatchKeyEvent(event)
+    }
+
+    /** Player keys; true when consumed. */
+    private fun handleKey(p: ExoPlayer, event: KeyEvent): Boolean {
+        val code = event.keyCode
+        if (code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || code == KeyEvent.KEYCODE_MEDIA_REWIND) return seekWithBar(event)
+        if (!view.isControllerFullyVisible) {
+            when (code) {
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> return seekWithBar(event)
+                // Center: skips the segment when the skip pill is up, else instant play/pause.
+                // Pausing also shows the controls (they stay up while paused).
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (skip.visibility == View.VISIBLE && skip.tag == null) {
+                        skipCurrentSegment()
+                        return true
+                    }
+                    p.playWhenReady = !p.playWhenReady
+                    if (!p.playWhenReady) view.showController()
+                    return true
+                }
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { view.showController(); return true }
+            }
+        } else if ((code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) && currentFocus === timeBar) {
+            // Center on the bar: apply a pending seek right away, then play/pause.
+            if (scrubbing) timeBar.onKeyDown(code, event)
+            p.playWhenReady = !p.playWhenReady
+            return true
+        }
+        return false
+    }
+
+    /** A failure before anything plays would otherwise leave a silent black screen. */
+    override fun onError(e: Exception) {
+        if (e is com.litefin.tv.api.ApiException && e.code == 401) return super.onError(e)
+        message.text = "Lecture impossible : ${e.message ?: e.javaClass.simpleName}"
+        message.visibility = View.VISIBLE
     }
 
     override fun onStop() {
@@ -521,9 +569,9 @@ class PlayerActivity : BaseActivity() {
         started = false
         progressJob?.cancel()
         preview.release()
+        view.player = null
         player?.release()
         player = null
-        view.player = null
         finish()
     }
 }

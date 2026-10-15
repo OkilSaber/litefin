@@ -36,5 +36,8 @@ class App : Application() {
 
         /** Last "playback stopped" report: screens wait for it so they don't show a stale resume point. */
         @Volatile var pendingReport: kotlinx.coroutines.Job? = null
+
+        /** Bumped when watched state / positions change, so Home only reloads when needed. */
+        @Volatile var dataVersion = 0
     }
 }

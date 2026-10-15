@@ -16,13 +16,13 @@ class PanelItem(val label: String, val icon: Int = 0, val checked: Boolean = fal
  * activity content, so no extra window. Enters in 180 ms ease-out (slide + fade), leaves faster
  * (120 ms): slow where the user reads, fast where the system responds.
  */
-class SidePanel private constructor(private val activity: BaseActivity) {
+class SidePanel private constructor(private val activity: BaseActivity, inheritedFocus: View?) {
     private val content = activity.findViewById<ViewGroup>(android.R.id.content)
     private val page = content.getChildAt(0) as ViewGroup
     private val root = LayoutInflater.from(activity).inflate(R.layout.side_panel, content, false)
     private val panel = root.findViewById<View>(R.id.panel)
     private val scrim = root.findViewById<View>(R.id.panel_scrim)
-    private val previousFocus = activity.currentFocus
+    private val previousFocus = inheritedFocus ?: activity.currentFocus
     private val slide = 48 * activity.resources.displayMetrics.density
     private var closing = false
 
@@ -61,6 +61,17 @@ class SidePanel private constructor(private val activity: BaseActivity) {
         list.getChildAt(focus.coerceIn(0, maxOf(0, items.lastIndex)))?.requestFocus()
     }
 
+    /** Removes the panel immediately (no animation): used when another panel replaces it. */
+    private fun dismissNow(): View? {
+        closing = true
+        panel.animate().cancel()
+        scrim.animate().cancel()
+        content.removeView(root)
+        page.descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
+        if (activity.panel === this) activity.panel = null
+        return previousFocus
+    }
+
     fun close(then: (() -> Unit)? = null) {
         if (closing) return
         closing = true
@@ -77,8 +88,8 @@ class SidePanel private constructor(private val activity: BaseActivity) {
     companion object {
         fun show(activity: BaseActivity, title: String, subtitle: String? = null, items: List<PanelItem>,
                  focus: Int = 0, onPick: (Int) -> Unit) {
-            activity.panel?.close()
-            SidePanel(activity).open(title, subtitle, items, focus, onPick)
+            val inherited = activity.panel?.dismissNow()
+            SidePanel(activity, inherited).open(title, subtitle, items, focus, onPick)
         }
     }
 }

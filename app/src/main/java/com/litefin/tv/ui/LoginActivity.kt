@@ -53,6 +53,7 @@ class LoginActivity : BaseActivity() {
     }
 
     private fun done(account: Account) {
+        Prefs.server = serverUrl()
         Prefs.saveAccount(account)
         Prefs.current = account
         startActivity(Intent(this, HomeActivity::class.java)
@@ -64,11 +65,12 @@ class LoginActivity : BaseActivity() {
         error.text = ""
         quickJob?.cancel()
         quickJob = launch {
-            if (!Api.quickConnectEnabled(serverUrl())) {
+            val server = serverUrl()
+            if (!Api.quickConnectEnabled(server)) {
                 error.text = "La connexion rapide est désactivée sur ce serveur (Tableau de bord > Général)."
                 return@launch
             }
-            val (secret, code) = Api.quickConnectInitiate()
+            val (secret, code) = Api.quickConnectInitiate(server)
             val dialog = AlertDialog.Builder(this@LoginActivity, android.R.style.Theme_DeviceDefault_Dialog_Alert)
                 .setTitle("Connexion rapide")
                 .setMessage("Sur un appareil déjà connecté à Jellyfin, ouvrez votre profil > Connexion rapide et saisissez ce code :")
@@ -83,10 +85,14 @@ class LoginActivity : BaseActivity() {
                 .setNegativeButton("Annuler", null)
                 .setOnDismissListener { quickJob?.cancel() }
                 .show()
-            while (!Api.quickConnectApproved(secret)) delay(3000)
-            val account = Api.quickConnectLogin(secret)
-            dialog.setOnDismissListener(null)
-            dialog.dismiss()
+            // Whatever ends the wait (approval, expired code, network error, cancel), the dialog goes away.
+            val account = try {
+                while (!Api.quickConnectApproved(server, secret)) delay(3000)
+                Api.quickConnectLogin(server, secret)
+            } finally {
+                dialog.setOnDismissListener(null)
+                dialog.dismiss()
+            }
             done(account)
         }
     }

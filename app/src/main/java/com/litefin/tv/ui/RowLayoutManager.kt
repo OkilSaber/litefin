@@ -10,6 +10,12 @@ import androidx.recyclerview.widget.RecyclerView
  * card isn't laid out yet because keys are pressed quickly), they scroll it instead.
  */
 class RowLayoutManager(context: Context) : LinearLayoutManager(context, RecyclerView.HORIZONTAL, false) {
+    // Rows are rebound with notifyDataSetChanged: skip the default fade/move animations on every card.
+    override fun onAttachedToWindow(view: RecyclerView) {
+        super.onAttachedToWindow(view)
+        view.itemAnimator = null
+    }
+
     override fun onInterceptFocusSearch(focused: View, direction: Int): View? {
         if (direction != View.FOCUS_LEFT && direction != View.FOCUS_RIGHT) return null
         val card = findContainingItemView(focused) ?: return null

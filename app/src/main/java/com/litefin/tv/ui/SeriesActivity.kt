@@ -2,11 +2,11 @@ package com.litefin.tv.ui
 
 import android.os.Bundle
 import android.widget.Button
-import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.RecyclerView
 import com.litefin.tv.R
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
 import com.litefin.tv.api.Api
 import com.litefin.tv.api.Item
 
@@ -34,10 +34,15 @@ class SeriesActivity : BaseActivity() {
 
     override fun onItemChanged() { load() }
 
+    private var series: Item? = null
+
     private fun load(): Job = launch {
         awaitPlaybackReport()
-        val series = Api.item(id)
-        val list = Api.seasons(id)
+        // First visit: full series + seasons in parallel. Coming back: watched state + seasons only.
+        val seasonsCall = async { Api.seasons(id) }
+        val series = series?.let { old -> old.copy(played = Api.userData(id).second) } ?: Api.item(id)
+        this@SeriesActivity.series = series
+        val list = seasonsCall.await()
         if (!loaded) bindArt(series, findViewById(R.id.logo), findViewById(R.id.title))
         findViewById<TextView>(R.id.title).text = series.name
         findViewById<TextView>(R.id.overview).text = series.overview ?: ""
@@ -55,9 +60,11 @@ class SeriesActivity : BaseActivity() {
             setOnClickListener { launch { Api.setPlayed(series.id, !series.played); load() } }
         }
         seasons.submit(list)
-        val cast = series.people.filter { it.type == "Actor" }.take(30)
-        findViewById<TextView>(R.id.cast_title).gone(cast.isEmpty())
-        findViewById<RecyclerView>(R.id.cast).adapter = PersonAdapter(cast)
+        if (!loaded) {
+            val cast = series.people.filter { it.type == "Actor" }.take(30)
+            findViewById<TextView>(R.id.cast_title).gone(cast.isEmpty())
+            findViewById<RecyclerView>(R.id.cast).adapter = PersonAdapter(cast)
+        }
         if (!loaded) findViewById<Button>(R.id.resume).requestFocus()
         loaded = true
     }

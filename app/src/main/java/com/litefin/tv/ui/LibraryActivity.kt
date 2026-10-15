@@ -61,6 +61,7 @@ class LibraryActivity : BaseActivity() {
         grid.layoutManager = GridManager(this, maxOf(1, (usable / cardWidth).toInt()))
         grid.setHasFixedSize(true)
         grid.setItemViewCacheSize(4)
+        grid.itemAnimator = null
         adapter = CardAdapter({ open(it) }, { showMenu(it) }) { pos -> if (pos > adapter.items.size - 20) loadMore() }
         grid.adapter = adapter
 
@@ -116,21 +117,18 @@ class LibraryActivity : BaseActivity() {
         }
     }
 
-    private fun chooseFilter() = pick("Filtrer", filters.map { it.second }, filter) { which ->
+    private fun chooseFilter() = choose("Filtrer", filters.map { it.second }, filter) { which ->
         if (which != filter) { filter = which; changed() }
     }
 
     private fun chooseGenre() = launch {
         val list = genres ?: Api.genres(parentId, types).also { genres = it }
         val current = list.indexOfFirst { it.first == genre?.first } + 1
-        pick("Genre", listOf("Tous") + list.map { it.second }, current) { which ->
+        choose("Genre", listOf("Tous") + list.map { it.second }, current) { which ->
             val g = if (which == 0) null else list[which - 1]
             if (g?.first != genre?.first) { genre = g; changed() }
         }
     }
-
-    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) =
-        choose(title, labels, current, onPick = onPick)
 
     private suspend fun query(start: Int, limit: Int) =
         Api.items(parentId, start, limit, types, sorts[sort].sortBy, descending, filters[filter].first, genre?.first)

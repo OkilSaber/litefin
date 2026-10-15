@@ -37,6 +37,11 @@ class SeekPreview(
     private var decoder: BitmapRegionDecoder? = null
     private var job: Job? = null
     private var shownThumb = -1
+    private var released = false
+
+    /** Decoder state is only touched from this single thread: no races between overlapping requests. */
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    private val io = Dispatchers.IO.limitedParallelism(1)
 
     /** [anchor]: the progress bar (horizontal position); [above]: the control panel the bubble sits on. */
     fun show(positionMs: Long, fraction: Float, anchor: View, above: View, deltaMs: Long = 0, chapterName: String? = null) {
@@ -59,10 +64,13 @@ class SeekPreview(
         job?.cancel()
         job = scope.launch {
             val bmp = runCatching {
-                withContext(Dispatchers.IO) {
+                withContext(io) {
+                    if (released) return@withContext null
                     if (tile != tileIndex || decoder == null) {
                         decoder?.recycle()
+                        decoder = null
                         val bytes = Api.trickplayTile(t, tile)
+                        if (released) return@withContext null
                         @Suppress("DEPRECATION")
                         decoder = BitmapRegionDecoder.newInstance(bytes, 0, bytes.size, false)
                         tileIndex = tile
@@ -70,7 +78,7 @@ class SeekPreview(
                     val x = (cell % t.tileWidth) * t.width
                     val y = (cell / t.tileWidth) * t.height
                     val opts = BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 }
-                    decoder!!.decodeRegion(Rect(x, y, x + t.width, y + t.height), opts)
+                    decoder?.decodeRegion(Rect(x, y, x + t.width, y + t.height), opts)
                 }
             }.getOrNull()
             if (bmp != null) image.setImageBitmap(bmp)
@@ -83,8 +91,12 @@ class SeekPreview(
 
     fun release() {
         job?.cancel()
-        decoder?.recycle()
-        decoder = null
+        released = true
+        // Recycle on the decoder's own thread, after any decode still in flight.
+        com.litefin.tv.App.background.launch(io) {
+            decoder?.recycle()
+            decoder = null
+        }
     }
 
     private fun place(fraction: Float, anchor: View, above: View) {
@@ -95,10 +107,5 @@ class SeekPreview(
         box.x = (center - box.width / 2f).coerceIn(0f, (parent.width - box.width).toFloat().coerceAtLeast(0f))
         val top = IntArray(2).also { above.getLocationInWindow(it) }
         box.y = (top[1] - p[1] - box.height - 2 * box.resources.displayMetrics.density)
-    }
-
-    private fun clock(ms: Long): String {
-        val s = ms / 1000
-        return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
     }
 }

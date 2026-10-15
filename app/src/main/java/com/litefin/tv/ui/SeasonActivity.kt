@@ -27,6 +27,7 @@ class SeasonActivity : BaseActivity() {
         seriesId = intent.getStringExtra("seriesId")!!
         list = findViewById(R.id.episodes)
         list.layoutManager = LinearLayoutManager(this)
+        list.itemAnimator = null
         list.adapter = EpisodeAdapter()
     }
 
@@ -45,7 +46,7 @@ class SeasonActivity : BaseActivity() {
             findViewById<TextView>(R.id.series_title).text = season.seriesName
             findViewById<TextView>(R.id.title).text = season.name
         }
-        val eps = Api.episodes(seriesId, seasonId)
+        val eps = Api.episodes(seriesId, seasonId, overview = true)
         val unplayed = eps.count { !it.played }
         findViewById<TextView>(R.id.meta).text =
             "${eps.size} épisodes" + if (unplayed in 1 until eps.size) "  ·  $unplayed non vus" else if (unplayed == 0) "  ·  tout vu" else ""

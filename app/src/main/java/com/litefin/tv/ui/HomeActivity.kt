@@ -9,6 +9,7 @@ import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.litefin.tv.App
 import com.litefin.tv.R
 import com.litefin.tv.api.Api
 import com.litefin.tv.api.Item
@@ -80,19 +81,29 @@ class HomeActivity : BaseActivity() {
             }
         }
         list.setItemViewCacheSize(2)
+        list.itemAnimator = null
         adapter = RowsAdapter()
         list.adapter = adapter
     }
 
+    private var loadedVersion = -1
+    private var loadedAt = 0L
+
+    // Reload only when something changed (playback, watched toggles) or the data is getting old,
+    // not on every return from a library or a settings screen.
     override fun onResume() {
         super.onResume()
-        if (Prefs.current != null) load()
+        if (Prefs.current == null) return
+        val stale = android.os.SystemClock.elapsedRealtime() - loadedAt > 10 * 60_000
+        if (!loaded || App.dataVersion != loadedVersion || stale) load()
     }
 
     private fun load() {
         status.visibility = View.GONE
         launch {
             awaitPlaybackReport()
+            loadedVersion = App.dataVersion
+            loadedAt = android.os.SystemClock.elapsedRealtime()
             // Keeps the saved name/avatar in sync with the server (and fills in migrated v1 logins).
             if (!loaded) Api.me().let { me -> if (me.name != Prefs.current?.name || me.imageTag != Prefs.current?.imageTag) {
                 Prefs.saveAccount(me)
@@ -134,9 +145,14 @@ class HomeActivity : BaseActivity() {
     /** Row a smooth scroll is currently bringing in, -1 when idle. */
     private var pendingRow = -1
 
+    /** Late "focus the first card" of a row being scrolled back; dropped if another move happens first. */
+    private var pendingFocus: Pair<View, Runnable>? = null
+
     private fun clearPending(list: RecyclerView) {
         pendingScroll?.let { list.removeOnScrollListener(it) }
         pendingFallback?.let { list.removeCallbacks(it) }
+        pendingFocus?.let { (v, r) -> v.removeCallbacks(r) }
+        pendingFocus = null
         pendingScroll = null
         pendingFallback = null
     }
@@ -181,7 +197,11 @@ class HomeActivity : BaseActivity() {
         val lm = cards.layoutManager as RowLayoutManager
         if (!animate || lm.findFirstVisibleItemPosition() > 6) cards.scrollToPosition(if (animate) 6 else 0)
         if (animate) cards.smoothScrollToPosition(0)
-        val focusFirst = Runnable { cards.layoutManager?.findViewByPosition(0)?.requestFocus() }
+        val focusFirst = Runnable {
+            pendingFocus = null
+            cards.layoutManager?.findViewByPosition(0)?.requestFocus()
+        }
+        pendingFocus = cards to focusFirst
         cards.postDelayed(focusFirst, if (animate) 350 else 0)
         return true
     }
@@ -253,6 +273,7 @@ class HomeActivity : BaseActivity() {
                     recycleChildrenOnDetach = true
                 }
                 list.setRecycledViewPool(pool)
+                list.itemAnimator = null
                 list.setItemViewCacheSize(0)
                 list.adapter = cards
             }

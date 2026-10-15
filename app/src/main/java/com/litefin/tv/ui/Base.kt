@@ -178,11 +178,14 @@ val EASE_OUT = android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f)
  * once loaded (opacity only, 200 ms) instead of popping; cards never fade, they are too many.
  */
 fun BaseActivity.bindArt(item: Item, logo: ImageView, title: View?) {
-    val m = resources.displayMetrics
     val backdrop = findViewById<ImageView>(com.litefin.tv.R.id.backdrop)
     backdrop.alpha = 0f
-    backdrop.loadUrl(Api.image(item.backdropItemId, "Backdrop", item.backdropTag, 1280, 60), m.widthPixels, m.heightPixels) { ok ->
-        if (ok) backdrop.fadeIn()
+    backdrop.loadUrl(Api.image(item.backdropItemId, "Backdrop", item.backdropTag, 1280, 60), 1280, 720) { ok ->
+        if (ok) {
+            backdrop.fadeIn()
+            // The backdrop now covers the screen: the window background would only be overdraw.
+            window.setBackgroundDrawable(null)
+        }
     }
     val url = Api.image(item.logoItemId, "Logo", item.logoTag, 600, 90)
     logo.gone(url == null)
@@ -195,6 +198,18 @@ fun BaseActivity.bindArt(item: Item, logo: ImageView, title: View?) {
 
 fun View.fadeIn(duration: Long = 200) {
     animate().alpha(1f).setDuration(duration).setInterpolator(EASE_OUT).start()
+}
+
+/** Position/duration as m:ss or h:mm:ss. */
+fun clock(ms: Long): String {
+    val s = ms / 1000
+    return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
+}
+
+/** Wall-clock time (HH:MM) of an epoch instant, e.g. when playback will end. */
+fun clockTime(epochMs: Long): String {
+    val c = java.util.Calendar.getInstance().apply { timeInMillis = epochMs }
+    return "%02d:%02d".format(c.get(java.util.Calendar.HOUR_OF_DAY), c.get(java.util.Calendar.MINUTE))
 }
 
 fun runtime(ticks: Long): String {

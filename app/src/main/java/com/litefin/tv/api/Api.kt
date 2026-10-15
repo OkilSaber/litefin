@@ -34,12 +34,14 @@ object Api {
 
     private val user: String get() = Prefs.userId!!
 
-    private suspend fun raw(method: String, path: String, body: JSONObject? = null, token: String? = Prefs.token): String =
+    private suspend fun raw(
+        method: String, path: String, body: JSONObject? = null, token: String? = Prefs.token, server: String = Prefs.server,
+    ): String =
         withContext(Dispatchers.IO) {
             val reqBody = body?.toString()?.toRequestBody(JSON)
                 ?: if (method == "POST") ByteArray(0).toRequestBody(JSON) else null
             val req = Request.Builder()
-                .url(Prefs.server + path)
+                .url(server + path)
                 .header("Authorization", authHeader(token))
                 .method(method, reqBody)
                 .build()
@@ -59,9 +61,10 @@ object Api {
     // Only the fields list screens use: keeps responses (and parsing) small.
     private const val LIST_PARAMS = "Fields=ProductionYear&EnableImageTypes=Primary&ImageTypeLimit=1&EnableUserData=true"
 
+    // Login calls take the server explicitly: the saved address (shared by every profile) only
+    // changes once a login actually succeeds (see LoginActivity.done).
     suspend fun login(server: String, username: String, password: String): Account {
-        Prefs.server = server
-        val text = raw("POST", "/Users/AuthenticateByName", JSONObject().put("Username", username).put("Pw", password), token = null)
+        val text = raw("POST", "/Users/AuthenticateByName", JSONObject().put("Username", username).put("Pw", password), token = null, server = server)
         return account(JSONObject(text))
     }
 
@@ -71,22 +74,20 @@ object Api {
     }
 
     // Quick Connect: the TV shows a code, the user approves it from another logged-in device.
-    suspend fun quickConnectEnabled(server: String): Boolean {
-        Prefs.server = server
-        return raw("GET", "/QuickConnect/Enabled", token = null).trim() == "true"
-    }
+    suspend fun quickConnectEnabled(server: String): Boolean =
+        raw("GET", "/QuickConnect/Enabled", token = null, server = server).trim() == "true"
 
     /** Returns (secret, code). */
-    suspend fun quickConnectInitiate(): Pair<String, String> {
-        val o = JSONObject(raw("POST", "/QuickConnect/Initiate", token = null))
+    suspend fun quickConnectInitiate(server: String): Pair<String, String> {
+        val o = JSONObject(raw("POST", "/QuickConnect/Initiate", token = null, server = server))
         return o.getString("Secret") to o.getString("Code")
     }
 
-    suspend fun quickConnectApproved(secret: String): Boolean =
-        JSONObject(raw("GET", "/QuickConnect/Connect?secret=$secret", token = null)).optBoolean("Authenticated")
+    suspend fun quickConnectApproved(server: String, secret: String): Boolean =
+        JSONObject(raw("GET", "/QuickConnect/Connect?secret=$secret", token = null, server = server)).optBoolean("Authenticated")
 
-    suspend fun quickConnectLogin(secret: String): Account =
-        account(JSONObject(raw("POST", "/Users/AuthenticateWithQuickConnect", JSONObject().put("Secret", secret), token = null)))
+    suspend fun quickConnectLogin(server: String, secret: String): Account =
+        account(JSONObject(raw("POST", "/Users/AuthenticateWithQuickConnect", JSONObject().put("Secret", secret), token = null, server = server)))
 
     /** Refreshes name/avatar of the current account. */
     suspend fun me(): Account {
@@ -137,27 +138,44 @@ object Api {
     suspend fun item(id: String): Item = Item.from(get("/Items/$id?userId=$user"))
 
     suspend fun seasons(seriesId: String): List<Item> =
-        Item.list(get("/Shows/$seriesId/Seasons?userId=$user&Fields=ProductionYear&EnableUserData=true"))
+        Item.list(get("/Shows/$seriesId/Seasons?userId=$user&$LIST_PARAMS"))
 
-    suspend fun episodes(seriesId: String, seasonId: String? = null, limit: Int? = null): List<Item> {
+    /** [overview]: only the season page shows episode summaries; other callers skip them. */
+    suspend fun episodes(seriesId: String, seasonId: String? = null, limit: Int? = null, overview: Boolean = false): List<Item> {
         val s = seasonId?.let { "&SeasonId=$it" } ?: ""
         val l = limit?.let { "&Limit=$it" } ?: ""
-        return Item.list(get("/Shows/$seriesId/Episodes?userId=$user$s$l&Fields=Overview&$LIST_PARAMS"))
+        val fields = if (overview) "Fields=ProductionYear,Overview&EnableImageTypes=Primary&ImageTypeLimit=1&EnableUserData=true" else LIST_PARAMS
+        return Item.list(get("/Shows/$seriesId/Episodes?userId=$user$s$l&$fields"))
     }
 
-    /** Trickplay (seek preview) info for an item, null if the server has none. Picks the smallest width >= 240. */
-    suspend fun trickplay(itemId: String): Trickplay? {
-        val item = get("/Items?ids=$itemId&userId=$user&Fields=Trickplay").optJSONArray("Items")?.optJSONObject(0)
-        val bySource = item?.optJSONObject("Trickplay") ?: return null
+    /** Resume position and watched state only, for refreshing a page that is already loaded. */
+    suspend fun userData(id: String): Pair<Long, Boolean> {
+        val o = get("/UserItems/$id/UserData?userId=$user")
+        return o.optLong("PlaybackPositionTicks") to o.optBoolean("Played")
+    }
+
+    /** What the player needs besides the stream: chapters and trickplay, in one small request. */
+    suspend fun playerMeta(itemId: String): Pair<List<Chapter>, Trickplay?> {
+        val o = get("/Items?ids=$itemId&userId=$user&Fields=Chapters,Trickplay&EnableImages=false&EnableUserData=false")
+            .optJSONArray("Items")?.optJSONObject(0) ?: return emptyList<Chapter>() to null
+        val chapters = o.optJSONArray("Chapters").map { Chapter(it.optString("Name"), it.optLong("StartPositionTicks") / 10_000) }
+        return chapters.sortedBy { it.startMs } to trickplay(itemId, o)
+    }
+
+    /** Trickplay (seek preview) info from an item JSON, null if none. Picks the smallest width >= 240. */
+    private fun trickplay(itemId: String, item: JSONObject): Trickplay? {
+        val bySource = item.optJSONObject("Trickplay") ?: return null
         val sourceId = bySource.keys().asSequence().firstOrNull() ?: return null
         val byWidth = bySource.getJSONObject(sourceId)
         val widths = byWidth.keys().asSequence().mapNotNull { it.toIntOrNull() }.sorted().toList()
         val width = widths.firstOrNull { it >= 240 } ?: widths.lastOrNull() ?: return null
         val t = byWidth.getJSONObject(width.toString())
-        return Trickplay(
+        val info = Trickplay(
             itemId, sourceId, t.optInt("Width"), t.optInt("Height"), t.optInt("TileWidth"), t.optInt("TileHeight"),
             t.optInt("ThumbnailCount"), t.optLong("Interval"),
         )
+        // Incomplete metadata would mean divisions by zero while scrubbing: treat as no trickplay.
+        return info.takeIf { it.width > 0 && it.height > 0 && it.tileWidth > 0 && it.tileHeight > 0 && it.count > 0 && it.interval > 0 }
     }
 
     suspend fun trickplayTile(t: Trickplay, index: Int): ByteArray = withContext(Dispatchers.IO) {
@@ -198,6 +216,7 @@ object Api {
 
     suspend fun setPlayed(id: String, played: Boolean) {
         raw(if (played) "POST" else "DELETE", "/UserPlayedItems/$id?userId=$user")
+        com.litefin.tv.App.dataVersion++
     }
 
     suspend fun playbackInfo(itemId: String, body: JSONObject): PlaybackInfo =

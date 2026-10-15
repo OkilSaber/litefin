@@ -13,13 +13,13 @@ import com.litefin.tv.api.MediaStream
 import com.litefin.tv.api.shortLabel
 import com.litefin.tv.data.Prefs
 import java.text.SimpleDateFormat
-import java.util.Calendar
 import java.util.Locale
 
 /** Movie or episode page: art, details, audio/subtitle tracks, next episodes, cast. */
 class ItemActivity : BaseActivity() {
     private lateinit var id: String
-    private lateinit var item: Item
+    /** Null until the first load: buttons pressed before that (or after a failed load) do nothing. */
+    private var item: Item? = null
     private val next = CardAdapter({ open(it) }, { showMenu(it) })
     private var audio: Int? = null
     private var subtitle: Int? = null
@@ -34,8 +34,8 @@ class ItemActivity : BaseActivity() {
             adapter = next
         }
         findViewById<RecyclerView>(R.id.cast).layoutManager = RowLayoutManager(this)
-        findViewById<Button>(R.id.resume).setOnClickListener { play(item, audio = audio, subtitle = subtitle) }
-        findViewById<Button>(R.id.play).setOnClickListener { play(item, fromStart = true, audio = audio, subtitle = subtitle) }
+        findViewById<Button>(R.id.resume).setOnClickListener { item?.let { play(it, audio = audio, subtitle = subtitle) } }
+        findViewById<Button>(R.id.play).setOnClickListener { item?.let { play(it, fromStart = true, audio = audio, subtitle = subtitle) } }
         findViewById<Button>(R.id.audio).setOnClickListener { chooseAudio() }
         findViewById<Button>(R.id.subtitle).setOnClickListener { chooseSubtitle() }
     }
@@ -49,19 +49,24 @@ class ItemActivity : BaseActivity() {
 
     private fun load(): Job = launch {
         awaitPlaybackReport()
-        item = Api.item(id)
-        val it = item
+        // First visit: the full item. Coming back: only the resume position / watched state can change.
+        val it = item?.let { old ->
+            val (position, played) = Api.userData(id)
+            old.copy(positionTicks = position, played = played)
+        } ?: Api.item(id)
+        item = it
         val episode = it.type == "Episode"
         if (!loaded) bind(it, episode)
 
         // One primary action: resume if started, else play. "From the start" only when it differs.
         val canResume = it.positionTicks > 0
-        findViewById<Button>(R.id.resume).text = if (canResume) "Reprendre à ${clock(it.positionTicks)}" else "Lire"
+        findViewById<Button>(R.id.resume).text = if (canResume) "Reprendre à ${clock(it.positionTicks / 10_000)}" else "Lire"
         findViewById<Button>(R.id.play).gone(!canResume)
+        val current = it
         findViewById<Button>(R.id.played).apply {
-            text = if (it.played) "Vu" else "Marquer vu"
-            isActivated = it.played
-            setOnClickListener { launch { Api.setPlayed(item.id, !item.played); load() } }
+            text = if (current.played) "Vu" else "Marquer vu"
+            isActivated = current.played
+            setOnClickListener { launch { Api.setPlayed(current.id, !current.played); load() } }
         }
         findViewById<TextView>(R.id.meta).text = meta(it)
         updateTrackButtons()
@@ -117,8 +122,7 @@ class ItemActivity : BaseActivity() {
         if (it.type == "Episode") it.premiereDate?.let { d -> parts += date(d) } else it.year?.let { y -> parts += y.toString() }
         if (it.runTimeTicks > 0) {
             parts += runtime(it.runTimeTicks)
-            val end = Calendar.getInstance().apply { add(Calendar.MILLISECOND, ((it.runTimeTicks - it.positionTicks) / 10_000).toInt()) }
-            parts += "fin à %02d:%02d".format(end.get(Calendar.HOUR_OF_DAY), end.get(Calendar.MINUTE))
+            parts += "fin à " + clockTime(System.currentTimeMillis() + (it.runTimeTicks - it.positionTicks) / 10_000)
         }
         it.officialRating?.let { r -> parts += r }
         it.communityRating?.let { r -> parts += "★ %.1f".format(r) }
@@ -150,6 +154,7 @@ class ItemActivity : BaseActivity() {
     }
 
     private fun updateTrackButtons() {
+        val item = item ?: return
         val a = item.audio
         val s = item.subtitles
         findViewById<Button>(R.id.audio).apply {
@@ -168,23 +173,23 @@ class ItemActivity : BaseActivity() {
     }
 
     private fun chooseAudio() {
-        val tracks = item.audio
+        val tracks = item?.audio ?: return
         val current = tracks.indexOfFirst { it.index == audio } + 1
-        pick("Audio", listOf("Auto (préférences)") + tracks.map { it.title }, current) { which ->
+        choose("Audio", listOf("Auto (préférences)") + tracks.map { it.title }, current) { which ->
             audio = if (which == 0) null else tracks[which - 1].index
             updateTrackButtons()
         }
     }
 
     private fun chooseSubtitle() {
-        val tracks: List<MediaStream> = item.subtitles
+        val tracks: List<MediaStream> = item?.subtitles ?: return
         val labels = listOf("Auto (préférences)", "Aucun") + tracks.map { it.title }
         val current = when (val s = subtitle) {
             null -> 0
             -1 -> 1
             else -> tracks.indexOfFirst { it.index == s } + 2
         }
-        pick("Sous-titres", labels, current) { which ->
+        choose("Sous-titres", labels, current) { which ->
             subtitle = when (which) {
                 0 -> null
                 1 -> -1
@@ -193,9 +198,6 @@ class ItemActivity : BaseActivity() {
             updateTrackButtons()
         }
     }
-
-    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) =
-        choose(title, labels, current, onPick = onPick)
 
     /** Rest of the season after this episode; on the last one, a button to the next season. */
     private suspend fun loadNext(ep: Item) {
@@ -215,11 +217,6 @@ class ItemActivity : BaseActivity() {
             button.text = "Saison suivante : ${nextSeason.name}"
             button.setOnClickListener { startActivity(seasonIntent(nextSeason.id, series)) }
         }
-    }
-
-    private fun clock(ticks: Long): String {
-        val s = ticks / 10_000_000
-        return if (s >= 3600) "%d:%02d:%02d".format(s / 3600, s / 60 % 60, s % 60) else "%d:%02d".format(s / 60, s % 60)
     }
 
     private fun date(iso: String): String = runCatching {

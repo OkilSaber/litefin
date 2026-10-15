@@ -32,7 +32,7 @@ class Chapter(val name: String, val startMs: Long)
 
 class Person(val id: String, val name: String, val role: String?, val type: String, val imageTag: String?)
 
-class Item(
+data class Item(
     val id: String,
     val name: String,
     val type: String,
@@ -91,8 +91,8 @@ class Item(
             append(name)
         }
 
-    val audio: List<MediaStream> get() = streams.filter { it.type == "Audio" }
-    val subtitles: List<MediaStream> get() = streams.filter { it.type == "Subtitle" }
+    val audio: List<MediaStream> by lazy { streams.filter { it.type == "Audio" } }
+    val subtitles: List<MediaStream> by lazy { streams.filter { it.type == "Subtitle" } }
     val video: MediaStream? get() = streams.firstOrNull { it.type == "Video" }
 
     companion object {
@@ -155,9 +155,7 @@ class MediaStream(
     val codec: String,
     val language: String?,
     val title: String,
-    val isDefault: Boolean,
     val isForced: Boolean,
-    val isExternal: Boolean,
     val deliveryUrl: String?,
     val width: Int,
     val height: Int,
@@ -192,9 +190,7 @@ private fun stream(s: JSONObject) = MediaStream(
     codec = s.optString("Codec"),
     language = s.str("Language"),
     title = s.str("DisplayTitle") ?: s.str("Language") ?: "Piste ${s.getInt("Index")}",
-    isDefault = s.optBoolean("IsDefault"),
     isForced = s.optBoolean("IsForced"),
-    isExternal = s.optBoolean("IsExternal"),
     deliveryUrl = s.str("DeliveryUrl"),
     width = s.optInt("Width"),
     height = s.optInt("Height"),
@@ -208,11 +204,10 @@ class MediaSource(
     val defaultAudio: Int?,
     val defaultSubtitle: Int?,
     val supportsDirectPlay: Boolean,
-    val container: String?,
     val transcodingUrl: String?,
 ) {
-    val audio: List<MediaStream> get() = streams.filter { it.type == "Audio" }
-    val subtitles: List<MediaStream> get() = streams.filter { it.type == "Subtitle" }
+    val audio: List<MediaStream> by lazy { streams.filter { it.type == "Audio" } }
+    val subtitles: List<MediaStream> by lazy { streams.filter { it.type == "Subtitle" } }
 }
 
 class PlaybackInfo(val playSessionId: String, val source: MediaSource)
@@ -227,7 +222,6 @@ fun parsePlaybackInfo(o: JSONObject): PlaybackInfo {
             defaultAudio = ms.int("DefaultAudioStreamIndex"),
             defaultSubtitle = ms.int("DefaultSubtitleStreamIndex"),
             supportsDirectPlay = ms.optBoolean("SupportsDirectPlay"),
-            container = ms.str("Container"),
             transcodingUrl = ms.str("TranscodingUrl"),
         ),
     )
