@@ -1,6 +1,5 @@
 package com.litefin.tv.ui
 
-import android.app.AlertDialog
 import android.content.Context
 import android.os.Bundle
 import android.view.View
@@ -66,7 +65,6 @@ class LibraryActivity : BaseActivity() {
         grid.adapter = adapter
 
         findViewById<Button>(R.id.sort).setOnClickListener { chooseSort() }
-        findViewById<Button>(R.id.order).setOnClickListener { descending = !descending; changed() }
         findViewById<Button>(R.id.filter).setOnClickListener { chooseFilter() }
         findViewById<Button>(R.id.genre).setOnClickListener { chooseGenre() }
         updateButtons()
@@ -94,16 +92,26 @@ class LibraryActivity : BaseActivity() {
     }
 
     private fun updateButtons() {
-        findViewById<Button>(R.id.sort).text = "Tri : ${sorts[sort].label}"
-        findViewById<Button>(R.id.order).text = if (descending) "↓ Décroissant" else "↑ Croissant"
-        findViewById<Button>(R.id.filter).text = "Filtre : ${filters[filter].second}"
-        findViewById<Button>(R.id.genre).text = "Genre : ${genre?.second ?: "Tous"}"
+        findViewById<Button>(R.id.sort).text = sorts[sort].label + if (descending) "  ↓" else "  ↑"
+        // Not inside apply {}: TextView has its own `filters` (InputFilter) that would shadow ours.
+        val filterButton = findViewById<Button>(R.id.filter)
+        filterButton.text = if (filter == 0) "Filtrer" else filters[filter].second
+        filterButton.isActivated = filter != 0
+        findViewById<Button>(R.id.genre).apply {
+            text = genre?.second ?: "Genre"
+            isActivated = genre != null
+        }
     }
 
-    private fun chooseSort() = pick("Trier par", sorts.map { it.label }, sort) { which ->
-        if (which != sort) {
-            sort = which
-            descending = sorts[which].defaultDescending
+    /** Picking the active sort again flips its order, so one chip covers both. */
+    private fun chooseSort() {
+        val labels = sorts.mapIndexed { i, it -> if (i == sort) it.label + if (descending) "  ↓" else "  ↑" else it.label }
+        choose("Trier par", labels, sort, subtitle = "Choisir le tri actif inverse l'ordre") { which ->
+            if (which == sort) descending = !descending
+            else {
+                sort = which
+                descending = sorts[which].defaultDescending
+            }
             changed()
         }
     }
@@ -121,12 +129,8 @@ class LibraryActivity : BaseActivity() {
         }
     }
 
-    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) {
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(title)
-            .setSingleChoiceItems(labels.toTypedArray(), current) { d, which -> d.dismiss(); onPick(which) }
-            .show()
-    }
+    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) =
+        choose(title, labels, current, onPick = onPick)
 
     private suspend fun query(start: Int, limit: Int) =
         Api.items(parentId, start, limit, types, sorts[sort].sortBy, descending, filters[filter].first, genre?.first)

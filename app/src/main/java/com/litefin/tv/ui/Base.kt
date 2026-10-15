@@ -1,10 +1,10 @@
 package com.litefin.tv.ui
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.view.View
 import android.widget.ImageView
+import android.widget.TextView
 import android.widget.Toast
 import coil.request.Disposable
 import coil.request.ImageRequest
@@ -21,6 +21,23 @@ import kotlinx.coroutines.launch
 
 abstract class BaseActivity : Activity() {
     val scope: CoroutineScope = MainScope()
+
+    /** Open side panel, if any: BACK closes it first. */
+    var panel: SidePanel? = null
+
+    override fun dispatchKeyEvent(event: android.view.KeyEvent): Boolean {
+        val open = panel
+        if (open != null && event.keyCode == android.view.KeyEvent.KEYCODE_BACK) {
+            if (event.action == android.view.KeyEvent.ACTION_UP) open.close()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
+    /** Single-choice list in the side panel; the current choice gets a check mark and the focus. */
+    fun choose(title: String, labels: List<String>, current: Int, subtitle: String? = null, onPick: (Int) -> Unit) =
+        SidePanel.show(this, title, subtitle, labels.mapIndexed { i, l -> PanelItem(l, checked = i == current) },
+            focus = current.coerceAtLeast(0), onPick = onPick)
 
     override fun onDestroy() {
         scope.cancel()
@@ -45,6 +62,11 @@ abstract class BaseActivity : Activity() {
             return
         }
         toast("Erreur : ${e.message ?: e.javaClass.simpleName}")
+    }
+
+    /** Waits (3 s max) for the player's final report, so reloaded data includes the new position. */
+    suspend fun awaitPlaybackReport() {
+        App.pendingReport?.let { kotlinx.coroutines.withTimeoutOrNull(3000) { it.join() } }
     }
 
     fun toast(msg: String) = Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
@@ -81,45 +103,48 @@ abstract class BaseActivity : Activity() {
 
     /** Long-press menu on any item. */
     fun showMenu(item: Item) {
-        val actions = ArrayList<Pair<String, () -> Unit>>()
+        val actions = ArrayList<Pair<PanelItem, () -> Unit>>()
+        fun add(label: String, icon: Int, action: () -> Unit) { actions += PanelItem(label, icon) to action }
         when (item.type) {
             "Movie", "Video", "Episode" -> {
-                if (item.positionTicks > 0) actions += "Reprendre" to { play(item) }
-                actions += (if (item.positionTicks > 0) "Lire depuis le début" else "Lire") to { play(item, fromStart = true) }
+                if (item.positionTicks > 0) add("Reprendre", com.litefin.tv.R.drawable.ic_play) { play(item) }
+                add(if (item.positionTicks > 0) "Lire depuis le début" else "Lire",
+                    if (item.positionTicks > 0) com.litefin.tv.R.drawable.ic_restart else com.litefin.tv.R.drawable.ic_play) { play(item, fromStart = true) }
                 if (item.type == "Episode") {
                     val series = item.seriesId
                     val season = item.seasonId
-                    if (season != null && series != null) actions += "Aller vers la saison" to { startActivity(seasonIntent(season, series)) }
-                    if (series != null) actions += "Aller vers la série" to { openSeries(series) }
+                    if (season != null && series != null) add("Aller vers la saison", com.litefin.tv.R.drawable.ic_list) { startActivity(seasonIntent(season, series)) }
+                    if (series != null) add("Aller vers la série", com.litefin.tv.R.drawable.ic_tv) { openSeries(series) }
                 } else {
-                    actions += "Aller sur le film" to { open(item) }
+                    add("Aller sur le film", com.litefin.tv.R.drawable.ic_tv) { open(item) }
                 }
             }
             "Series" -> {
-                actions += "Reprendre" to { launch { play(seriesResumeTarget(item.id)) } }
-                actions += "Lire depuis le début" to { launch { play(firstEpisode(item.id), fromStart = true) } }
-                actions += "Aller vers la série" to { open(item) }
+                add("Reprendre", com.litefin.tv.R.drawable.ic_play) { launch { play(seriesResumeTarget(item.id)) } }
+                add("Lire depuis le début", com.litefin.tv.R.drawable.ic_restart) { launch { play(firstEpisode(item.id), fromStart = true) } }
+                add("Aller vers la série", com.litefin.tv.R.drawable.ic_tv) { open(item) }
             }
             "Season" -> {
-                actions += "Aller vers la saison" to { open(item) }
-                item.seriesId?.let { s -> actions += "Aller vers la série" to { openSeries(s) } }
+                add("Aller vers la saison", com.litefin.tv.R.drawable.ic_list) { open(item) }
+                item.seriesId?.let { s -> add("Aller vers la série", com.litefin.tv.R.drawable.ic_tv) { openSeries(s) } }
             }
             else -> {
                 open(item)
                 return
             }
         }
-        actions += (if (item.played) "Marquer comme non vu" else "Marquer comme vu") to {
+        add(if (item.played) "Marquer comme non vu" else "Marquer comme vu", com.litefin.tv.R.drawable.ic_check) {
             launch {
                 Api.setPlayed(item.id, !item.played)
                 toast(if (item.played) "Marqué comme non vu" else "Marqué comme vu")
                 onItemChanged()
             }
         }
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(item.fullTitle)
-            .setItems(actions.map { it.first }.toTypedArray()) { _, which -> actions[which].second() }
-            .show()
+        val subtitle = when (item.type) {
+            "Episode" -> listOfNotNull(item.seriesName, item.episodeCode.ifEmpty { null }).joinToString(" · ")
+            else -> item.year?.toString()
+        }
+        SidePanel.show(this, item.name, subtitle, actions.map { it.first }) { which -> actions[which].second() }
     }
 
     /** In-progress episode, else next up, else the first one. */
@@ -145,20 +170,68 @@ val Activity.dp: Float get() = resources.displayMetrics.density
 
 fun View.gone(hide: Boolean) { visibility = if (hide) View.GONE else View.VISIBLE }
 
-/** Background art + logo (falls back to the text title when the item has no logo). */
+/** Strong ease-out: starts fast so the change reads as immediate, settles softly. */
+val EASE_OUT = android.view.animation.PathInterpolator(0.23f, 1f, 0.32f, 1f)
+
+/**
+ * Background art + logo (falls back to the text title when the item has no logo). Both fade in
+ * once loaded (opacity only, 200 ms) instead of popping; cards never fade, they are too many.
+ */
 fun BaseActivity.bindArt(item: Item, logo: ImageView, title: View?) {
     val m = resources.displayMetrics
-    findViewById<ImageView>(com.litefin.tv.R.id.backdrop)
-        .loadUrl(Api.image(item.backdropItemId, "Backdrop", item.backdropTag, 1280, 60), m.widthPixels, m.heightPixels)
+    val backdrop = findViewById<ImageView>(com.litefin.tv.R.id.backdrop)
+    backdrop.alpha = 0f
+    backdrop.loadUrl(Api.image(item.backdropItemId, "Backdrop", item.backdropTag, 1280, 60), m.widthPixels, m.heightPixels) { ok ->
+        if (ok) backdrop.fadeIn()
+    }
     val url = Api.image(item.logoItemId, "Logo", item.logoTag, 600, 90)
     logo.gone(url == null)
     title?.gone(url != null)
+    logo.alpha = 0f
     logo.loadUrl(url, (460 * dp).toInt(), (110 * dp).toInt()) { ok ->
-        if (!ok) { logo.gone(true); title?.gone(false) }
+        if (ok) logo.fadeIn() else { logo.gone(true); title?.gone(false) }
     }
+}
+
+fun View.fadeIn(duration: Long = 200) {
+    animate().alpha(1f).setDuration(duration).setInterpolator(EASE_OUT).start()
 }
 
 fun runtime(ticks: Long): String {
     val min = ticks / 600_000_000
     return if (min >= 60) "${min / 60} h ${"%02d".format(min % 60)}" else "$min min"
+}
+
+/** Clips a view (and its image) to its rounded background. Done by the RenderThread, no bitmap work. */
+fun View.clipRounded() {
+    outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
+    clipToOutline = true
+}
+
+/**
+ * Focus look for cards: slight scale-up and title brightening, applied instantly. D-pad moves happen
+ * hundreds of times a day, so they are never animated (an animation would make navigation feel slow).
+ */
+fun View.focusStyle(title: TextView?, scale: Float = 1.05f) {
+    val dim = context.getColor(com.litefin.tv.R.color.text3)
+    val apply = { focused: Boolean ->
+        scaleX = if (focused) scale else 1f
+        scaleY = scaleX
+        title?.setTextColor(if (focused) android.graphics.Color.WHITE else dim)
+    }
+    setOnFocusChangeListener { _, focused -> apply(focused) }
+    apply(hasFocus())
+}
+
+/** Watched badge + progress track overlaid on a card image (layout/card_progress.xml). */
+fun bindProgress(root: View, item: Item, imageWidth: Int) {
+    val showBadge = item.played && item.type != "Series" && item.type != "Season" && item.type != "CollectionFolder"
+    root.findViewById<View>(com.litefin.tv.R.id.badge).gone(!showBadge)
+    val frac = if (item.runTimeTicks > 0) item.positionTicks.toFloat() / item.runTimeTicks else 0f
+    val track = root.findViewById<View>(com.litefin.tv.R.id.track)
+    track.gone(frac <= 0f)
+    if (frac > 0f) {
+        val inset = (12 * root.resources.displayMetrics.density).toInt()
+        root.findViewById<View>(com.litefin.tv.R.id.progress).layoutParams.width = ((imageWidth - inset) * frac).toInt()
+    }
 }

@@ -1,6 +1,5 @@
 package com.litefin.tv.ui
 
-import android.app.AlertDialog
 import android.os.Bundle
 import android.widget.Button
 import android.widget.ImageView
@@ -11,6 +10,7 @@ import kotlinx.coroutines.Job
 import com.litefin.tv.api.Api
 import com.litefin.tv.api.Item
 import com.litefin.tv.api.MediaStream
+import com.litefin.tv.api.shortLabel
 import com.litefin.tv.data.Prefs
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -48,24 +48,24 @@ class ItemActivity : BaseActivity() {
     override fun onItemChanged() { load() }
 
     private fun load(): Job = launch {
+        awaitPlaybackReport()
         item = Api.item(id)
         val it = item
         val episode = it.type == "Episode"
         if (!loaded) bind(it, episode)
 
+        // One primary action: resume if started, else play. "From the start" only when it differs.
         val canResume = it.positionTicks > 0
-        findViewById<Button>(R.id.resume).apply {
-            gone(!canResume)
-            text = "Reprendre à ${clock(it.positionTicks)}"
-        }
-        findViewById<Button>(R.id.play).text = if (canResume) "Depuis le début" else "Lire"
+        findViewById<Button>(R.id.resume).text = if (canResume) "Reprendre à ${clock(it.positionTicks)}" else "Lire"
+        findViewById<Button>(R.id.play).gone(!canResume)
         findViewById<Button>(R.id.played).apply {
-            text = if (it.played) "Marquer non vu" else "Marquer vu"
+            text = if (it.played) "Vu" else "Marquer vu"
+            isActivated = it.played
             setOnClickListener { launch { Api.setPlayed(item.id, !item.played); load() } }
         }
         findViewById<TextView>(R.id.meta).text = meta(it)
         updateTrackButtons()
-        if (!loaded) findViewById<Button>(if (canResume) R.id.resume else R.id.play).requestFocus()
+        if (!loaded) findViewById<Button>(R.id.resume).requestFocus()
         loaded = true
         if (episode) loadNext(it)
     }
@@ -76,6 +76,7 @@ class ItemActivity : BaseActivity() {
         val h = ((if (episode) 198 else 360) * dp).toInt()
         poster.layoutParams.width = w
         poster.layoutParams.height = h
+        poster.clipRounded()
         poster.loadUrl(Api.imageUrl(it, w), w, h)
         bindArt(it, findViewById(R.id.logo), null)
 
@@ -143,8 +144,8 @@ class ItemActivity : BaseActivity() {
             lines += "Vidéo : " + listOfNotNull(res, v.codec.uppercase(), v.videoRange?.takeIf { r -> r != "SDR" }, it.container?.uppercase())
                 .joinToString(" · ")
         }
-        if (it.audio.isNotEmpty()) lines += "Audio : " + it.audio.joinToString("  |  ") { s -> s.title }
-        lines += "Sous-titres : " + if (it.subtitles.isEmpty()) "aucun" else it.subtitles.joinToString("  |  ") { s -> s.title }
+        if (it.audio.isNotEmpty()) lines += "Audio : " + it.audio.joinToString(",  ") { s -> s.shortLabel }
+        lines += "Sous-titres : " + if (it.subtitles.isEmpty()) "aucun" else it.subtitles.joinToString(",  ") { s -> s.shortLabel }
         return lines.joinToString("\n")
     }
 
@@ -153,16 +154,16 @@ class ItemActivity : BaseActivity() {
         val s = item.subtitles
         findViewById<Button>(R.id.audio).apply {
             gone(a.size < 2)
-            text = "Audio : " + (a.firstOrNull { it.index == audio }?.title ?: "Auto")
+            text = a.firstOrNull { it.index == audio }?.shortLabel ?: "Audio auto"
         }
         findViewById<Button>(R.id.subtitle).apply {
             gone(s.isEmpty())
             val label = when (val sub = subtitle) {
                 null -> "Auto"
                 -1 -> "Aucun"
-                else -> s.firstOrNull { it.index == sub }?.title ?: "Auto"
+                else -> s.firstOrNull { it.index == sub }?.shortLabel ?: "Auto"
             }
-            text = "Sous-titres : $label" + if (Prefs.burnSubtitles && subtitle != -1) " (gravés)" else ""
+            text = (if (subtitle == null) "Sous-titres auto" else label) + if (Prefs.burnSubtitles && subtitle != -1) " · gravés" else ""
         }
     }
 
@@ -193,12 +194,8 @@ class ItemActivity : BaseActivity() {
         }
     }
 
-    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) {
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(title)
-            .setSingleChoiceItems(labels.toTypedArray(), current) { d, which -> d.dismiss(); onPick(which) }
-            .show()
-    }
+    private fun pick(title: String, labels: List<String>, current: Int, onPick: (Int) -> Unit) =
+        choose(title, labels, current, onPick = onPick)
 
     /** Rest of the season after this episode; on the last one, a button to the next season. */
     private suspend fun loadNext(ep: Item) {
@@ -215,7 +212,7 @@ class ItemActivity : BaseActivity() {
         val nextSeason = seasons.indexOfFirst { it.id == season }.let { i -> seasons.getOrNull(i + 1) }
         button.gone(nextSeason == null)
         if (nextSeason != null) {
-            button.text = "Saison suivante : ${nextSeason.name}  →"
+            button.text = "Saison suivante : ${nextSeason.name}"
             button.setOnClickListener { startActivity(seasonIntent(nextSeason.id, series)) }
         }
     }

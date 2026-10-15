@@ -39,8 +39,8 @@ class CardAdapter(
         val d = parent.resources.displayMetrics.density
         val w = ((if (viewType == 1) 224 else 124) * d).toInt()
         val h = ((if (viewType == 1) 126 else 186) * d).toInt()
-        v.layoutParams.width = w + (6 * d).toInt()
-        v.findViewById<View>(R.id.frame).layoutParams.height = h
+        v.layoutParams.width = w + (10 * d).toInt()
+        v.findViewById<View>(R.id.frame).apply { layoutParams.height = h; clipRounded() }
         return VH(v, w, h)
     }
 
@@ -48,11 +48,9 @@ class CardAdapter(
         val item = items[position]
         holder.item = item
         holder.name.text = item.name
-        holder.sub.text = if (item.played && item.type != "Series" && item.type != "Season") "✓ " + item.subtitle else item.subtitle
+        holder.sub.text = item.subtitle
         holder.image.loadUrl(Api.imageUrl(item, holder.w), holder.w, holder.h)
-        val frac = if (item.runTimeTicks > 0) item.positionTicks.toFloat() / item.runTimeTicks else 0f
-        holder.progress.layoutParams.width = (holder.w * frac).toInt()
-        holder.progress.visibility = if (frac > 0f) View.VISIBLE else View.GONE
+        bindProgress(holder.itemView, item, holder.w)
         onBind?.invoke(position)
     }
 
@@ -60,10 +58,10 @@ class CardAdapter(
         val image: ImageView = v.findViewById(R.id.image)
         val name: TextView = v.findViewById(R.id.name)
         val sub: TextView = v.findViewById(R.id.sub)
-        val progress: View = v.findViewById(R.id.progress)
         var item: Item? = null
 
         init {
+            v.focusStyle(name)
             v.setOnClickListener { item?.let(onClick) }
             if (onLongClick != null) v.setOnLongClickListener { item?.let(onLongClick); true }
         }

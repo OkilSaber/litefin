@@ -35,6 +35,7 @@ class SeriesActivity : BaseActivity() {
     override fun onItemChanged() { load() }
 
     private fun load(): Job = launch {
+        awaitPlaybackReport()
         val series = Api.item(id)
         val list = Api.seasons(id)
         if (!loaded) bindArt(series, findViewById(R.id.logo), findViewById(R.id.title))
@@ -49,7 +50,8 @@ class SeriesActivity : BaseActivity() {
         findViewById<TextView>(R.id.meta).text = meta.joinToString("  ·  ")
 
         findViewById<Button>(R.id.played).apply {
-            text = if (series.played) "Marquer non vu" else "Marquer vu"
+            text = if (series.played) "Vu" else "Marquer vu"
+            isActivated = series.played
             setOnClickListener { launch { Api.setPlayed(series.id, !series.played); load() } }
         }
         seasons.submit(list)

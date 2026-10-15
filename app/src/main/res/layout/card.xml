@@ -2,23 +2,27 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="wrap_content"
     android:layout_height="wrap_content"
-    android:layout_margin="5dp"
-    android:background="@drawable/card_bg"
+    android:layout_marginStart="4dp"
+    android:layout_marginEnd="4dp"
+    android:layout_marginTop="6dp"
+    android:layout_marginBottom="2dp"
     android:focusable="true"
-    android:orientation="vertical"
-    android:padding="3dp">
+    android:orientation="vertical">
 
-    <FrameLayout android:id="@+id/frame" android:layout_width="match_parent" android:layout_height="wrap_content">
-        <ImageView android:id="@+id/image" android:layout_width="match_parent" android:layout_height="match_parent"
-            android:scaleType="centerCrop" android:importantForAccessibility="no" />
-        <View android:id="@+id/progress" android:layout_width="0dp" android:layout_height="4dp"
-            android:layout_gravity="bottom" android:background="@drawable/progress_bg" />
+    <FrameLayout android:id="@+id/ring" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:background="@drawable/ring_bg" android:duplicateParentState="true" android:padding="5dp">
+        <FrameLayout android:id="@+id/frame" android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:background="@drawable/image_round">
+            <ImageView android:id="@+id/image" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:scaleType="centerCrop" android:importantForAccessibility="no" />
+            <include layout="@layout/card_progress" />
+        </FrameLayout>
     </FrameLayout>
 
     <TextView android:id="@+id/name" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:paddingStart="4dp" android:paddingEnd="4dp" android:paddingTop="4dp" android:singleLine="true"
-        android:ellipsize="end" android:textColor="@android:color/white" android:textSize="13sp" />
+        android:paddingStart="6dp" android:paddingEnd="6dp" android:singleLine="true"
+        android:ellipsize="end" android:textColor="@color/text3" android:textSize="13sp" />
     <TextView android:id="@+id/sub" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:paddingStart="4dp" android:paddingEnd="4dp" android:paddingBottom="2dp" android:singleLine="true"
-        android:ellipsize="end" android:textColor="@color/text2" android:textSize="11sp" />
+        android:paddingStart="6dp" android:paddingEnd="6dp" android:paddingBottom="2dp" android:singleLine="true"
+        android:ellipsize="end" android:textColor="#FF6B6E76" android:textSize="11sp" />
 </LinearLayout>

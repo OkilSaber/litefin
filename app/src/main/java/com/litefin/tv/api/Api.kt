@@ -171,6 +171,31 @@ object Api {
         }
     }
 
+    /**
+     * Skippable segments. Jellyfin 10.10+ Media Segments API first (Intro Skipper feeds it), then the
+     * plugin's own endpoint as a fallback for older plugin setups.
+     */
+    suspend fun segments(itemId: String): List<Segment> {
+        val native = runCatching {
+            get("/MediaSegments/$itemId").optJSONArray("Items").map {
+                Segment(it.optString("Type"), it.optLong("StartTicks") / 10_000, it.optLong("EndTicks") / 10_000)
+            }
+        }.getOrDefault(emptyList())
+        if (native.isNotEmpty()) return native
+        return runCatching {
+            val o = get("/Episode/$itemId/IntroSkipperSegments")
+            o.keys().asSequence().mapNotNull { key ->
+                val seg = o.optJSONObject(key) ?: return@mapNotNull null
+                if (seg.has("Valid") && !seg.optBoolean("Valid")) return@mapNotNull null
+                val start = seg.optDouble("Start", seg.optDouble("IntroStart", Double.NaN))
+                val end = seg.optDouble("End", seg.optDouble("IntroEnd", Double.NaN))
+                if (start.isNaN() || end.isNaN() || end <= start) return@mapNotNull null
+                val type = when (key) { "Introduction" -> "Intro"; "Credits" -> "Outro"; else -> key }
+                Segment(type, (start * 1000).toLong(), (end * 1000).toLong())
+            }.toList()
+        }.getOrDefault(emptyList())
+    }
+
     suspend fun setPlayed(id: String, played: Boolean) {
         raw(if (played) "POST" else "DELETE", "/UserPlayedItems/$id?userId=$user")
     }

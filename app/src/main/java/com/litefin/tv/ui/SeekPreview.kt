@@ -25,6 +25,7 @@ class SeekPreview(
     private val box: View,
     private val image: ImageView,
     private val time: TextView,
+    private val chapter: TextView,
 ) {
     var trickplay: Trickplay? = null
         set(v) {
@@ -37,11 +38,17 @@ class SeekPreview(
     private var job: Job? = null
     private var shownThumb = -1
 
-    /** [anchor]: the progress bar; [fraction]: position in it, to center the box above it. */
-    fun show(positionMs: Long, fraction: Float, anchor: View) {
-        time.text = clock(positionMs)
+    /** [anchor]: the progress bar (horizontal position); [above]: the control panel the bubble sits on. */
+    fun show(positionMs: Long, fraction: Float, anchor: View, above: View, deltaMs: Long = 0, chapterName: String? = null) {
+        // Landing time, then how far we jumped (dimmed).
+        val jump = if (deltaMs == 0L) "" else (if (deltaMs > 0) "  +" else "  −") + clock(kotlin.math.abs(deltaMs))
+        time.text = android.text.SpannableString(clock(positionMs) + jump).apply {
+            if (jump.isNotEmpty()) setSpan(android.text.style.ForegroundColorSpan(0xFF8A8D96.toInt()), length - jump.length, length, 0)
+        }
+        chapter.text = chapterName
+        chapter.gone(chapterName == null)
         box.visibility = View.VISIBLE
-        box.post { place(fraction, anchor) }
+        box.post { place(fraction, anchor, above) }
         val t = trickplay ?: return
         val thumb = (positionMs / t.interval).toInt().coerceIn(0, maxOf(0, t.count - 1))
         if (thumb == shownThumb) return
@@ -80,13 +87,14 @@ class SeekPreview(
         decoder = null
     }
 
-    private fun place(fraction: Float, anchor: View) {
+    private fun place(fraction: Float, anchor: View, above: View) {
         val parent = box.parent as View
         val a = IntArray(2).also { anchor.getLocationInWindow(it) }
         val p = IntArray(2).also { parent.getLocationInWindow(it) }
         val center = a[0] - p[0] + fraction * anchor.width
         box.x = (center - box.width / 2f).coerceIn(0f, (parent.width - box.width).toFloat().coerceAtLeast(0f))
-        box.y = (a[1] - p[1] - box.height - 16 * box.resources.displayMetrics.density)
+        val top = IntArray(2).also { above.getLocationInWindow(it) }
+        box.y = (top[1] - p[1] - box.height - 2 * box.resources.displayMetrics.density)
     }
 
     private fun clock(ms: Long): String {

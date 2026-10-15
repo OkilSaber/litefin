@@ -14,7 +14,7 @@
                 android:orientation="horizontal" android:paddingEnd="48dp">
 
                 <ImageView android:id="@+id/poster" android:layout_width="240dp" android:layout_height="360dp"
-                    android:background="@color/card" android:scaleType="centerCrop" android:importantForAccessibility="no" />
+                    android:background="@drawable/image_round" android:scaleType="centerCrop" android:importantForAccessibility="no" />
 
                 <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
                     android:layout_marginStart="32dp" android:orientation="vertical">
@@ -42,21 +42,19 @@
 
                     <LinearLayout android:id="@+id/buttons" android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_marginTop="16dp" android:orientation="horizontal">
-                        <Button android:id="@+id/resume" style="@style/Btn" android:text="Reprendre" />
-                        <Button android:id="@+id/play" style="@style/Btn" android:text="Lire" />
-                        <Button android:id="@+id/played" style="@style/Btn" android:singleLine="true" />
+                        <Button android:id="@+id/resume" style="@style/Btn.Primary" android:drawableStart="@drawable/ic_play" android:text="Lire" />
+                        <Button android:id="@+id/play" style="@style/Chip" android:drawableStart="@drawable/ic_restart" android:text="Depuis le début" />
+                        <Button android:id="@+id/played" style="@style/Chip" android:drawableStart="@drawable/ic_check" />
                     </LinearLayout>
                     <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_marginTop="10dp" android:orientation="horizontal">
-                        <Button android:id="@+id/audio" style="@style/Btn" android:maxWidth="330dp" android:singleLine="true"
-                            android:ellipsize="end" android:textSize="13sp" />
-                        <Button android:id="@+id/subtitle" style="@style/Btn" android:maxWidth="330dp" android:singleLine="true"
-                            android:ellipsize="end" android:textSize="13sp" />
+                        <Button android:id="@+id/audio" style="@style/Chip" android:drawableStart="@drawable/ic_volume" />
+                        <Button android:id="@+id/subtitle" style="@style/Chip" android:drawableStart="@drawable/ic_cc" />
                     </LinearLayout>
                     <LinearLayout android:id="@+id/nav" android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_marginTop="10dp" android:orientation="horizontal" android:visibility="gone">
-                        <Button android:id="@+id/go_season" style="@style/Btn" android:textSize="13sp" />
-                        <Button android:id="@+id/go_series" style="@style/Btn" android:textSize="13sp" android:text="Voir la série" />
+                        <Button android:id="@+id/go_season" style="@style/Chip" android:drawableStart="@drawable/ic_list" />
+                        <Button android:id="@+id/go_series" style="@style/Chip" android:drawableStart="@drawable/ic_tv" android:text="Voir la série" />
                     </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
@@ -64,7 +62,7 @@
             <TextView android:id="@+id/next_title" style="@style/Section" android:text="Épisodes suivants" android:visibility="gone" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/next" android:layout_width="match_parent"
                 android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" android:visibility="gone" />
-            <Button android:id="@+id/next_season" style="@style/Btn" android:layout_marginTop="20dp" android:visibility="gone" />
+            <Button android:id="@+id/next_season" style="@style/Chip" android:layout_marginTop="20dp" android:drawableStart="@drawable/ic_next" android:visibility="gone" />
 
             <TextView android:id="@+id/cast_title" style="@style/Section" android:text="Distribution" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/cast" android:layout_width="match_parent"

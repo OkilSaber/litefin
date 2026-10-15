@@ -15,6 +15,21 @@ class Trickplay(
     val interval: Long,
 )
 
+/** Skippable part of an episode (intro, recap, credits...), from Media Segments / Intro Skipper. */
+class Segment(val type: String, val startMs: Long, val endMs: Long) {
+    val skipLabel: String
+        get() = when (type) {
+            "Intro" -> "Passer l'intro"
+            "Recap" -> "Passer le récap"
+            "Outro" -> "Passer le générique"
+            "Preview" -> "Passer l'aperçu"
+            "Commercial" -> "Passer la pub"
+            else -> "Passer"
+        }
+}
+
+class Chapter(val name: String, val startMs: Long)
+
 class Person(val id: String, val name: String, val role: String?, val type: String, val imageTag: String?)
 
 class Item(
@@ -49,6 +64,7 @@ class Item(
     val people: List<Person>,
     val streams: List<MediaStream>,
     val container: String?,
+    val chapters: List<Chapter>,
 ) {
     val isWide: Boolean get() = type == "Episode" || type == "CollectionFolder" || type == "UserView"
 
@@ -122,6 +138,9 @@ class Item(
                 },
                 streams = source?.optJSONArray("MediaStreams").map(::stream),
                 container = source?.str("Container"),
+                chapters = o.optJSONArray("Chapters").map {
+                    Chapter(it.optString("Name"), it.optLong("StartPositionTicks") / 10_000)
+                },
             )
         }
 
@@ -145,6 +164,27 @@ class MediaStream(
     val channels: Int,
     val videoRange: String?,
 )
+
+/** Compact label for chips: "Français · E-AC3 5.1", "Anglais forcé · SRT". */
+val MediaStream.shortLabel: String
+    get() {
+        val lang = language?.let { code ->
+            java.util.Locale.forLanguageTag(code).getDisplayLanguage(java.util.Locale.FRENCH)
+                .takeIf { it.isNotEmpty() && it != code }?.replaceFirstChar { it.uppercase() }
+        } ?: title.substringBefore(" - ")
+        val codecName = when (codec.lowercase()) {
+            "ac3" -> "AC3"; "eac3" -> "E-AC3"; "dts" -> "DTS"; "truehd" -> "TrueHD"; "aac" -> "AAC"
+            "flac" -> "FLAC"; "opus" -> "Opus"; "mp3" -> "MP3"
+            "subrip", "srt" -> "SRT"; "ass", "ssa" -> "ASS"; "pgssub" -> "PGS"; "dvdsub", "dvd_subtitle" -> "VobSub"
+            "webvtt" -> "VTT"; else -> codec.uppercase()
+        }
+        return if (type == "Audio") {
+            val ch = when (channels) { 1 -> "Mono"; 2 -> "Stéréo"; 6 -> "5.1"; 8 -> "7.1"; else -> if (channels > 0) "${channels} ch" else "" }
+            listOf(lang, "$codecName $ch".trim()).joinToString(" · ")
+        } else {
+            (if (isForced) "$lang forcé" else lang) + " · " + codecName
+        }
+    }
 
 private fun stream(s: JSONObject) = MediaStream(
     index = s.getInt("Index"),

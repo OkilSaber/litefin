@@ -38,6 +38,7 @@ class SeasonActivity : BaseActivity() {
     override fun onItemChanged() { load() }
 
     private fun load(): Job = launch {
+        awaitPlaybackReport()
         if (!loaded) {
             val season = Api.item(seasonId)
             bindArt(season, findViewById(R.id.logo), findViewById(R.id.series_title))
@@ -73,26 +74,23 @@ class SeasonActivity : BaseActivity() {
             holder.name.text = buildString {
                 e.indexNumber?.let { append(it).append(". ") }
                 append(e.name)
-                if (e.played) append("  ✓")
             }
             holder.sub.text = buildString {
                 if (e.runTimeTicks > 0) append(runtime(e.runTimeTicks)).append("  ·  ")
                 append(e.overview ?: "")
             }
             holder.image.loadUrl(Api.imageUrl(e, w), w, h)
-            val frac = if (e.runTimeTicks > 0) e.positionTicks.toFloat() / e.runTimeTicks else 0f
-            holder.progress.layoutParams.width = (w * frac).toInt()
-            holder.progress.gone(frac <= 0f)
+            bindProgress(holder.itemView, e, w)
         }
 
         inner class VH(v: View) : RecyclerView.ViewHolder(v) {
             val image: ImageView = v.findViewById(R.id.image)
             val name: TextView = v.findViewById(R.id.name)
             val sub: TextView = v.findViewById(R.id.sub)
-            val progress: View = v.findViewById(R.id.progress)
             var item: Item? = null
 
             init {
+                v.findViewById<View>(R.id.frame).clipRounded()
                 v.setOnClickListener { item?.let { open(it) } }
                 v.setOnLongClickListener { item?.let { showMenu(it) }; true }
             }

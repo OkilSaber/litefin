@@ -19,8 +19,8 @@ class PersonAdapter(private val people: List<Person>) : RecyclerView.Adapter<Per
         val d = parent.resources.displayMetrics.density
         val w = (104 * d).toInt()
         val h = (156 * d).toInt()
-        v.layoutParams.width = w + (6 * d).toInt()
-        v.findViewById<View>(R.id.frame).layoutParams.height = h
+        v.layoutParams.width = w + (10 * d).toInt()
+        v.findViewById<View>(R.id.frame).apply { layoutParams.height = h; clipRounded() }
         return VH(v, w, h)
     }
 
@@ -42,7 +42,7 @@ class PersonAdapter(private val people: List<Person>) : RecyclerView.Adapter<Per
         val sub: TextView = v.findViewById(R.id.sub)
 
         init {
-            v.findViewById<View>(R.id.progress).visibility = View.GONE
+            v.focusStyle(name)
         }
     }
 }

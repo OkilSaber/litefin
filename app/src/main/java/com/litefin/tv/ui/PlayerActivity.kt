@@ -1,6 +1,5 @@
 package com.litefin.tv.ui
 
-import android.app.AlertDialog
 import android.net.Uri
 import android.os.Bundle
 import android.util.Log
@@ -26,6 +25,8 @@ import androidx.media3.ui.TimeBar
 import com.litefin.tv.App
 import com.litefin.tv.R
 import com.litefin.tv.api.Api
+import com.litefin.tv.api.Chapter
+import com.litefin.tv.api.Segment
 import com.litefin.tv.api.DeviceProfile
 import com.litefin.tv.api.MediaSource
 import com.litefin.tv.api.PlaybackInfo
@@ -44,6 +45,15 @@ class PlayerActivity : BaseActivity() {
     private lateinit var timeBar: DefaultTimeBar
     private lateinit var preview: SeekPreview
     private var scrubbing = false
+    private var scrubFrom = 0L
+    private lateinit var skip: android.widget.Button
+    private lateinit var controller: View
+    private var segments: List<Segment> = emptyList()
+    private var chapters: List<Chapter> = emptyList()
+    private var skipSegment: Segment? = null
+    private var skipShownAt = 0L
+    private var lastKey = 0L
+    private var fading = false
     private var player: ExoPlayer? = null
 
     private var source: MediaSource? = null
@@ -67,8 +77,19 @@ class PlayerActivity : BaseActivity() {
         playButton.setOnClickListener { player?.let { it.playWhenReady = !it.playWhenReady } }
         findViewById<View>(R.id.ctl_audio).setOnClickListener { chooseAudio() }
         findViewById<View>(R.id.ctl_subs).setOnClickListener { chooseSubtitle() }
+        skip = findViewById(R.id.skip)
+        skip.setOnClickListener { skipCurrentSegment() }
+        findViewById<View>(R.id.ctl_next_chapter).setOnClickListener { nextChapter() }
+        // The skip pill joins the D-pad flow when the controls are up (above the bar / right of the last button).
+        findViewById<View>(R.id.ctl_subs).nextFocusRightId = R.id.skip
+        skip.nextFocusDownId = R.id.ctl_play
         view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-            if (visibility == View.VISIBLE) playButton.requestFocus() else preview.hide()
+            if (visibility == View.VISIBLE) {
+                lastKey = now()
+                playButton.requestFocus()
+                refreshControls()
+            } else preview.hide()
+            updateSkip()
         })
 
         // Small buffers: the device has very little RAM.
@@ -87,12 +108,16 @@ class PlayerActivity : BaseActivity() {
         // Left/right on the focused progress bar use the same step (its default is 1/20 of the duration).
         timeBar = view.findViewById(androidx.media3.ui.R.id.exo_progress)
         timeBar.setKeyTimeIncrement(Prefs.seekSeconds * 1000L)
-        preview = SeekPreview(scope, findViewById(R.id.preview), findViewById(R.id.preview_image), findViewById(R.id.preview_time))
+        timeBar.nextFocusUpId = R.id.skip
+        controller = view.findViewById(androidx.media3.ui.R.id.exo_controller)
+        preview = SeekPreview(scope, findViewById(R.id.preview), findViewById(R.id.preview_image), findViewById(R.id.preview_time),
+            findViewById(R.id.preview_chapter))
         // Seeking (from the bar, or left/right while the controls are hidden) pauses and shows a preview
         // of the landing point; the player view seeks when the scrub ends.
         timeBar.addListener(object : TimeBar.OnScrubListener {
             override fun onScrubStart(timeBar: TimeBar, position: Long) {
                 scrubbing = true
+                scrubFrom = player?.currentPosition ?: position
                 player?.playWhenReady = false
                 showPreview(position)
             }
@@ -101,6 +126,8 @@ class PlayerActivity : BaseActivity() {
 
             override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
                 scrubbing = false
+                // The video now shows the landing frame: let the bubble go shortly after.
+                this@PlayerActivity.timeBar.postDelayed({ if (!scrubbing) preview.hide() }, 1200)
             }
         })
         launch {
@@ -108,7 +135,127 @@ class PlayerActivity : BaseActivity() {
             Log.i("LiteFin", "trickplay: " + (preview.trickplay?.let { "${it.width}x${it.height} every ${it.interval} ms" } ?: "none"))
         }
 
+        launch {
+            chapters = Api.item(itemId).chapters.sortedBy { it.startMs }
+            // Markers on the bar for every chapter boundary (not the one starting at 0).
+            val marks = chapters.map { it.startMs }.filter { it > 0 }
+            if (marks.isNotEmpty()) view.setExtraAdGroupMarkers(marks.toLongArray(), BooleanArray(marks.size))
+            findViewById<View>(R.id.ctl_next_chapter).gone(chapters.isEmpty())
+            segments = Api.segments(itemId)
+            Log.i("LiteFin", "chapters: ${chapters.size}, segments: " + segments.joinToString { "${it.type} ${it.startMs / 1000}-${it.endMs / 1000}s" })
+        }
+        // One light ticker: skip pill, auto-hide fade, end time. Nothing heavier than a text update.
+        launch {
+            while (true) {
+                delay(500)
+                tick()
+            }
+        }
+
         start(intent.getLongExtra("startTicks", 0L) / 10_000)
+    }
+
+    private fun tick() {
+        val p = player ?: return
+        updateSkip()
+        if (view.isControllerFullyVisible) {
+            refreshControls()
+            // Auto-hide (4 s without a key while playing) fades out instead of cutting.
+            if (p.playWhenReady && !scrubbing && panel == null && !fading && now() - lastKey > 4000) fadeOutControls()
+        }
+    }
+
+    private fun now() = android.os.SystemClock.uptimeMillis()
+
+    private fun fadeOutControls() {
+        fading = true
+        controller.animate().alpha(0f).setDuration(150).setInterpolator(EASE_OUT).withEndAction {
+            fading = false
+            view.hideController()
+            controller.alpha = 1f
+        }.start()
+    }
+
+    private fun cancelFade() {
+        if (!fading) return
+        controller.animate().cancel()
+        controller.alpha = 1f
+        fading = false
+    }
+
+    /** End time and current chapter, only computed while the controls are visible. */
+    private fun refreshControls() {
+        val p = player ?: return
+        val pos = p.currentPosition
+        val duration = p.duration
+        if (duration > 0) {
+            val remaining = ((duration - pos) / p.playbackParameters.speed).toLong()
+            val end = java.util.Calendar.getInstance().apply { add(java.util.Calendar.MILLISECOND, remaining.toInt()) }
+            val text = "Fin à %02d:%02d".format(end.get(java.util.Calendar.HOUR_OF_DAY), end.get(java.util.Calendar.MINUTE))
+            findViewById<TextView>(R.id.ctl_end).let { if (it.text != text) it.text = text }
+        }
+        val chapterView = findViewById<TextView>(R.id.ctl_chapter)
+        val index = chapterAt(pos)
+        chapterView.gone(index < 0)
+        if (index >= 0) chapterView.text = "Chapitre ${index + 1} · ${chapters[index].name}"
+        findViewById<View>(R.id.ctl_next_chapter).gone(chapters.none { it.startMs > pos + 1000 })
+    }
+
+    private fun chapterAt(pos: Long): Int = chapters.indexOfLast { it.startMs <= pos }
+
+    private fun nextChapter() {
+        val p = player ?: return
+        val target = chapters.firstOrNull { it.startMs > p.currentPosition + 1000 } ?: return
+        p.seekTo(target.startMs)
+        refreshControls()
+    }
+
+    /**
+     * Skip pill: appears when entering a segment; with the controls hidden it fades away after 8 s,
+     * but it is always back while the controls are shown and we're still inside the segment.
+     */
+    private fun updateSkip() {
+        val p = player ?: return
+        val pos = p.currentPosition
+        val seg = segments.firstOrNull { pos >= it.startMs && pos < it.endMs - 1000 }
+        val controls = view.isControllerFullyVisible
+        if (seg !== skipSegment) {
+            skipSegment = seg
+            skipShownAt = now()
+            if (seg != null) skip.text = seg.skipLabel
+        }
+        val visible = seg != null && (controls || now() - skipShownAt < 8000)
+        // Sit above the control bar when it is up.
+        val bar = controller.findViewById<View>(R.id.ctl_bar)
+        skip.translationY = if (controls) -(bar.height - 24 * dp) else 0f
+        if (visible && skip.visibility != View.VISIBLE) {
+            skip.alpha = 0f
+            skip.visibility = View.VISIBLE
+            skip.animate().alpha(1f).setDuration(180).setInterpolator(EASE_OUT).start()
+        } else if (!visible && skip.visibility == View.VISIBLE && skip.tag == null) {
+            skip.tag = "hiding"
+            skip.animate().alpha(0f).setDuration(120).withEndAction {
+                skip.visibility = View.GONE
+                skip.tag = null
+            }.start()
+        }
+    }
+
+    private fun skipCurrentSegment() {
+        val p = player ?: return
+        val seg = skipSegment ?: return
+        val duration = p.duration
+        if (duration > 0 && seg.endMs >= duration - 2000) {
+            // Credits running to the very end: the episode is done, close the player (reported as watched).
+            p.seekTo(duration)
+            finish()
+            return
+        }
+        p.seekTo(seg.endMs)
+        p.playWhenReady = true
+        skipSegment = null
+        skipShownAt = 0
+        updateSkip()
     }
 
     private fun start(startMs: Long) = launch {
@@ -230,19 +377,13 @@ class PlayerActivity : BaseActivity() {
         val src = source ?: return
         val tracks = src.audio
         if (tracks.isEmpty()) return
-        val current = tracks.indexOfFirst { it.index == audioIndex }
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle("Audio")
-            .setOnDismissListener { findViewById<View>(R.id.ctl_audio).requestFocus() }
-            .setSingleChoiceItems(tracks.map { it.title }.toTypedArray(), current) { d, which ->
-                d.dismiss()
-                val idx = tracks[which].index
-                if (idx == audioIndex) return@setSingleChoiceItems
-                audioIndex = idx
-                if (playMethod == "DirectPlay") player?.let { applyAudioOverride(it.currentTracks) }
-                else reload()
-            }
-            .show()
+        choose("Audio", tracks.map { it.title }, tracks.indexOfFirst { it.index == audioIndex }) { which ->
+            val idx = tracks[which].index
+            if (idx == audioIndex) return@choose
+            audioIndex = idx
+            if (playMethod == "DirectPlay") player?.let { applyAudioOverride(it.currentTracks) }
+            else reload()
+        }
     }
 
     private fun chooseSubtitle() {
@@ -250,17 +391,12 @@ class PlayerActivity : BaseActivity() {
         val subs = src.subtitles
         val labels = listOf("Aucun") + subs.map { it.title }
         val current = subs.indexOfFirst { it.index == subtitleIndex } + 1
-        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-            .setTitle(if (Prefs.burnSubtitles) "Sous-titres (gravés)" else "Sous-titres")
-            .setOnDismissListener { findViewById<View>(R.id.ctl_subs).requestFocus() }
-            .setSingleChoiceItems(labels.toTypedArray(), current) { d, which ->
-                d.dismiss()
-                val idx = if (which == 0) -1 else subs[which - 1].index
-                if (idx == subtitleIndex) return@setSingleChoiceItems
-                subtitleIndex = idx
-                reload()
-            }
-            .show()
+        choose("Sous-titres", labels, current, subtitle = if (Prefs.burnSubtitles) "Gravés dans la vidéo" else null) { which ->
+            val idx = if (which == 0) -1 else subs[which - 1].index
+            if (idx == subtitleIndex) return@choose
+            subtitleIndex = idx
+            reload()
+        }
     }
 
     private fun reload() {
@@ -306,7 +442,7 @@ class PlayerActivity : BaseActivity() {
             .put("PlayMethod", playMethod)
             .put("SubtitleStreamIndex", subtitleIndex)
         audioIndex?.let { body.put("AudioStreamIndex", it) }
-        App.background.launch {
+        val job = App.background.launch {
             runCatching {
                 when (kind) {
                     "start" -> Api.reportStart(body)
@@ -318,11 +454,13 @@ class PlayerActivity : BaseActivity() {
                 }
             }
         }
+        if (kind == "stopped") App.pendingReport = job
     }
 
     private fun showPreview(position: Long) {
         val duration = player?.duration?.takeIf { it > 0 } ?: return
-        preview.show(position, position.toFloat() / duration, timeBar)
+        val chapter = chapterAt(position).let { if (it >= 0) chapters[it].name else null }
+        preview.show(position, position.toFloat() / duration, timeBar, controller.findViewById(R.id.ctl_bar), position - scrubFrom, chapter)
     }
 
     /** Sends a seek key to the progress bar (showing the controls first), so both ways of seeking behave the same. */
@@ -338,6 +476,11 @@ class PlayerActivity : BaseActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (panel != null) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            lastKey = now()
+            cancelFade()
+        }
         val p = player
         if (p != null && event.action == KeyEvent.ACTION_DOWN) {
             val code = event.keyCode
@@ -345,8 +488,13 @@ class PlayerActivity : BaseActivity() {
             if (!view.isControllerFullyVisible) {
                 when (code) {
                     KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> return seekWithBar(event)
-                    // Center: instant play/pause. Pausing also shows the controls (they stay up while paused).
+                    // Center: skips the segment when the skip pill is up, else instant play/pause.
+                    // Pausing also shows the controls (they stay up while paused).
                     KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        if (skip.visibility == View.VISIBLE && skip.tag == null) {
+                            skipCurrentSegment()
+                            return true
+                        }
                         p.playWhenReady = !p.playWhenReady
                         if (!p.playWhenReady) view.showController()
                         return true

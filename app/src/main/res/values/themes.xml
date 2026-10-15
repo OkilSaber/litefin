@@ -4,6 +4,10 @@
     <color name="card">#FF1C1E24</color>
     <color name="accent">#FF00A4DC</color>
     <color name="text2">#FFA8ABB3</color>
+    <color name="text3">#FF8A8D96</color>
+    <color name="placeholder">#FF2A2D36</color>
+    <color name="track">#40FFFFFF</color>
+    <color name="chip">#24FFFFFF</color>
 
     <style name="AppTheme" parent="@android:style/Theme.DeviceDefault.NoActionBar">
         <item name="android:windowBackground">@color/bg</item>
@@ -48,5 +52,29 @@
         <item name="android:stateListAnimator">@null</item>
         <item name="android:textAllCaps">false</item>
         <item name="android:singleLine">true</item>
+    </style>
+
+    <style name="Btn.Primary">
+        <item name="android:background">@drawable/btn_primary_bg</item>
+        <item name="android:textColor">@color/btn_primary_text</item>
+        <item name="android:drawableTint">@color/btn_primary_text</item>
+        <item name="android:drawablePadding">8dp</item>
+        <item name="android:textSize">16sp</item>
+        <item name="android:paddingStart">20dp</item>
+        <item name="android:paddingEnd">22dp</item>
+        <item name="android:paddingTop">10dp</item>
+        <item name="android:paddingBottom">10dp</item>
+    </style>
+
+    <style name="Chip" parent="Btn">
+        <item name="android:textSize">13sp</item>
+        <item name="android:drawableTint">@color/btn_text</item>
+        <item name="android:drawablePadding">6dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">16dp</item>
+        <item name="android:paddingTop">7dp</item>
+        <item name="android:paddingBottom">7dp</item>
+        <item name="android:ellipsize">end</item>
+        <item name="android:maxWidth">340dp</item>
     </style>
 </resources>

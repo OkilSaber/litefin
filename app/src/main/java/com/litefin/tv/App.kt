@@ -33,5 +33,8 @@ class App : Application() {
 
         /** Outlives activities: used for the final playback reports. */
         val background = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        /** Last "playback stopped" report: screens wait for it so they don't show a stale resume point. */
+        @Volatile var pendingReport: kotlinx.coroutines.Job? = null
     }
 }

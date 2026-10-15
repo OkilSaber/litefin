@@ -7,16 +7,36 @@
     android:paddingTop="20dp">
 
     <LinearLayout android:id="@+id/header" android:layout_width="match_parent" android:layout_height="wrap_content"
-        android:orientation="horizontal" android:gravity="center_vertical">
+        android:orientation="horizontal" android:gravity="center_vertical" android:paddingEnd="40dp">
         <TextView style="@style/Title" android:layout_width="wrap_content"
             android:layout_height="wrap_content" android:text="LiteFin" />
         <View android:layout_width="0dp" android:layout_height="1dp" android:layout_weight="1" />
-        <Button android:id="@+id/user" style="@style/Btn" />
-        <Button android:id="@+id/settings" style="@style/Btn" android:layout_marginEnd="40dp" android:text="Réglages" />
+        <FrameLayout android:id="@+id/user" android:layout_width="46dp" android:layout_height="46dp"
+            android:background="@drawable/avatar_ring" android:focusable="true" android:padding="4dp"
+            android:contentDescription="Changer de profil">
+            <FrameLayout android:id="@+id/user_frame" android:layout_width="match_parent" android:layout_height="match_parent"
+                android:background="@drawable/avatar_bg">
+                <TextView android:id="@+id/user_initial" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:gravity="center" android:textColor="@android:color/white" android:textSize="16sp" />
+                <ImageView android:id="@+id/user_image" android:layout_width="match_parent" android:layout_height="match_parent"
+                    android:scaleType="centerCrop" android:importantForAccessibility="no" />
+            </FrameLayout>
+        </FrameLayout>
+        <ImageButton android:id="@+id/settings" android:layout_width="40dp" android:layout_height="40dp"
+            android:layout_marginStart="12dp" android:background="@drawable/circle_btn_bg" android:padding="9dp"
+            android:scaleType="fitCenter" android:src="@drawable/ic_settings" android:tint="@color/btn_text"
+            android:contentDescription="Réglages" />
     </LinearLayout>
 
     <TextView android:id="@+id/status" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_marginTop="12dp" android:textColor="@color/text2" android:visibility="gone" />
+
+    <!-- Static placeholders while the first load runs: no shimmer, so no continuous redraw. -->
+    <LinearLayout android:id="@+id/skeleton" android:layout_width="match_parent" android:layout_height="wrap_content"
+        android:orientation="vertical">
+        <include layout="@layout/skeleton_row" />
+        <include layout="@layout/skeleton_row" />
+    </LinearLayout>
 
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/rows" android:layout_width="match_parent"
         android:layout_height="match_parent" android:clipToPadding="false" android:paddingBottom="40dp" />

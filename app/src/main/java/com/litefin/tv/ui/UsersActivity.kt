@@ -6,7 +6,6 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.ViewOutlineProvider
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.TextView
@@ -92,10 +91,8 @@ class UsersActivity : BaseActivity() {
             var account: Account? = null
 
             init {
-                v.findViewById<View>(R.id.avatar_frame).apply {
-                    outlineProvider = ViewOutlineProvider.BACKGROUND
-                    clipToOutline = true
-                }
+                v.findViewById<View>(R.id.avatar_frame).clipRounded()
+                v.focusStyle(name)
                 v.setOnClickListener {
                     val a = account
                     if (a != null) select(a) else startActivity(Intent(this@UsersActivity, LoginActivity::class.java))

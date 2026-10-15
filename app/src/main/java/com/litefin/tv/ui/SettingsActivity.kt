@@ -35,36 +35,22 @@ class SettingsActivity : BaseActivity() {
             refresh()
         }
         lang.setOnClickListener {
-            val current = languages.indexOfFirst { it.first == Prefs.subtitleLang }
-            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle("Langue des sous-titres")
-                .setSingleChoiceItems(languages.map { it.second }.toTypedArray(), current) { d, which ->
-                    Prefs.subtitleLang = languages[which].first
-                    d.dismiss()
-                    refresh()
-                }
-                .show()
+            choose("Langue des sous-titres", languages.map { it.second }, languages.indexOfFirst { it.first == Prefs.subtitleLang }) {
+                Prefs.subtitleLang = languages[it].first
+                refresh()
+            }
         }
         seek.setOnClickListener {
-            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle("Saut avant / arrière")
-                .setSingleChoiceItems(seeks.map { "$it secondes" }.toTypedArray(), seeks.indexOf(Prefs.seekSeconds)) { d, which ->
-                    Prefs.seekSeconds = seeks[which]
-                    d.dismiss()
-                    refresh()
-                }
-                .show()
+            choose("Saut avant / arrière", seeks.map { s -> "$s secondes" }, seeks.indexOf(Prefs.seekSeconds)) {
+                Prefs.seekSeconds = seeks[it]
+                refresh()
+            }
         }
         bitrate.setOnClickListener {
-            val current = bitrates.indexOf(Prefs.maxBitrate)
-            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
-                .setTitle("Débit max (transcodage)")
-                .setSingleChoiceItems(bitrates.map { "${it / 1_000_000} Mb/s" }.toTypedArray(), current) { d, which ->
-                    Prefs.maxBitrate = bitrates[which]
-                    d.dismiss()
-                    refresh()
-                }
-                .show()
+            choose("Débit max (transcodage)", bitrates.map { b -> "${b / 1_000_000} Mb/s" }, bitrates.indexOf(Prefs.maxBitrate)) {
+                Prefs.maxBitrate = bitrates[it]
+                refresh()
+            }
         }
         findViewById<Button>(R.id.server).setOnClickListener { editServer() }
         findViewById<Button>(R.id.cache).setOnClickListener { confirmClearCache() }

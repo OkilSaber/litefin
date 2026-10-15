@@ -5,7 +5,6 @@ import android.os.Bundle
 import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.View
-import android.widget.Button
 import android.view.ViewGroup
 import android.widget.TextView
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -37,6 +36,7 @@ class HomeActivity : BaseActivity() {
             return
         }
         setContentView(R.layout.activity_home)
+        findViewById<View>(R.id.user_frame).clipRounded()
         showUser(Prefs.current?.name)
         status = findViewById(R.id.status)
         val list = findViewById<RecyclerView>(R.id.rows)
@@ -77,8 +77,9 @@ class HomeActivity : BaseActivity() {
     }
 
     private fun load() {
-        if (!loaded) { status.text = "Chargement…"; status.visibility = View.VISIBLE }
+        status.visibility = View.GONE
         launch {
+            awaitPlaybackReport()
             // Keeps the saved name/avatar in sync with the server (and fills in migrated v1 logins).
             if (!loaded) Api.me().let { me -> if (me.name != Prefs.current?.name || me.imageTag != Prefs.current?.imageTag) {
                 Prefs.saveAccount(me)
@@ -95,7 +96,7 @@ class HomeActivity : BaseActivity() {
             result += Row("Bibliothèques", views)
             latest.awaitAll().filter { it.items.isNotEmpty() }.forEach { result += it }
 
-            status.visibility = View.GONE
+            findViewById<View>(R.id.skeleton).visibility = View.GONE
             loaded = true
             // Rebinding moves the D-pad focus, so only do it when something actually changed.
             if (signature(result) == signature(rows)) return@launch
@@ -109,7 +110,10 @@ class HomeActivity : BaseActivity() {
     }
 
     private fun showUser(name: String?) {
-        findViewById<Button>(R.id.user).text = "${name ?: ""}  ·  Changer"
+        val account = Prefs.current ?: return
+        findViewById<TextView>(R.id.user_initial).text = name?.take(1)?.uppercase()
+        val size = (38 * dp).toInt()
+        findViewById<android.widget.ImageView>(R.id.user_image).loadUrl(Api.userImage(account, size), size, size)
     }
 
     private var pendingScroll: RecyclerView.OnScrollListener? = null
@@ -161,6 +165,7 @@ class HomeActivity : BaseActivity() {
 
     override fun onError(e: Exception) {
         super.onError(e)
+        findViewById<View>(R.id.skeleton).visibility = View.GONE
         status.text = "Impossible de joindre le serveur (${e.message}). Réessayez ou vérifiez les réglages."
         status.visibility = View.VISIBLE
     }

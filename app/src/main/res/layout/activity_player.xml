@@ -8,7 +8,12 @@
     <androidx.media3.ui.PlayerView android:id="@+id/player" android:layout_width="match_parent"
         android:layout_height="match_parent" app:controller_layout_id="@layout/player_controls" app:animation_enabled="false"
         app:show_buffering="always" app:use_artwork="false" app:surface_type="surface_view"
-        app:show_timeout="4000" />
+        app:show_timeout="0" />
+
+    <!-- "Skip intro/credits": shown during a segment; outside the controller so it works with controls hidden. -->
+    <Button android:id="@+id/skip" style="@style/Btn.Primary" android:layout_gravity="bottom|end"
+        android:layout_marginEnd="40dp" android:layout_marginBottom="36dp" android:drawableStart="@drawable/ic_skip"
+        android:visibility="gone" />
 
     <TextView android:id="@+id/message" android:layout_width="wrap_content" android:layout_height="wrap_content"
         android:layout_gravity="center" android:textColor="@android:color/white" android:textSize="16sp"

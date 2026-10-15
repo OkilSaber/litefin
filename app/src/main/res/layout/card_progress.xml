@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Watched badge + progress track, overlaid on a card image. -->
+<merge xmlns:android="http://schemas.android.com/apk/res/android">
+    <ImageView android:id="@+id/badge" android:layout_width="20dp" android:layout_height="20dp"
+        android:layout_gravity="top|end" android:layout_margin="6dp" android:background="@drawable/badge_bg"
+        android:padding="4dp" android:src="@drawable/ic_check" android:importantForAccessibility="no"
+        android:visibility="gone" />
+    <FrameLayout android:id="@+id/track" android:layout_width="match_parent" android:layout_height="3dp"
+        android:layout_gravity="bottom" android:layout_margin="6dp" android:background="@drawable/track_bg"
+        android:visibility="gone">
+        <View android:id="@+id/progress" android:layout_width="0dp" android:layout_height="match_parent"
+            android:background="@drawable/progress_bg" />
+    </FrameLayout>
+</merge>
