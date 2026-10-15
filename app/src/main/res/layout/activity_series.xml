@@ -28,11 +28,11 @@
 
             <TextView style="@style/Section" android:text="Saisons" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/seasons" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingStart="4dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:paddingEnd="48dp" />
 
             <TextView android:id="@+id/cast_title" style="@style/Section" android:text="Distribution" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/cast" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingStart="4dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:paddingEnd="48dp" />
         </LinearLayout>
     </ScrollView>
 </FrameLayout>

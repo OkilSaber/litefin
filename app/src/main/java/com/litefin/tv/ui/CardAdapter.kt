@@ -44,6 +44,21 @@ class CardAdapter(
         return VH(v, w, h)
     }
 
+    companion object {
+        /** Full height (with margins) of a card of this kind, measured once so rows can have a fixed height. */
+        fun cardHeight(parent: ViewGroup, wide: Boolean): Int {
+            val v = LayoutInflater.from(parent.context).inflate(R.layout.card, parent, false)
+            val d = parent.resources.displayMetrics.density
+            v.findViewById<View>(R.id.frame).layoutParams.height = ((if (wide) 126 else 186) * d).toInt()
+            v.findViewById<TextView>(R.id.name).text = "Ag"
+            v.findViewById<TextView>(R.id.sub).text = "Ag"
+            val width = View.MeasureSpec.makeMeasureSpec(((if (wide) 234 else 134) * d).toInt(), View.MeasureSpec.EXACTLY)
+            v.measure(width, View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED))
+            val lp = v.layoutParams as ViewGroup.MarginLayoutParams
+            return v.measuredHeight + lp.topMargin + lp.bottomMargin
+        }
+    }
+
     override fun onBindViewHolder(holder: VH, position: Int) {
         val item = items[position]
         holder.item = item

@@ -23,5 +23,5 @@
         android:layout_marginTop="20dp" android:text="Aucun élément" android:textColor="@color/text2" android:visibility="gone" />
 
     <androidx.recyclerview.widget.RecyclerView android:id="@+id/grid" android:layout_width="match_parent"
-        android:layout_height="match_parent" android:clipToPadding="false" android:paddingBottom="40dp" />
+        android:layout_height="match_parent" android:clipToPadding="false" android:paddingStart="4dp" android:paddingTop="10dp" android:paddingBottom="40dp" />
 </LinearLayout>

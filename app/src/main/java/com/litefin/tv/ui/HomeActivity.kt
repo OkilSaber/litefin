@@ -176,8 +176,23 @@ class HomeActivity : BaseActivity() {
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
             VH(LayoutInflater.from(parent.context).inflate(R.layout.row, parent, false))
 
+        // Fixed row heights: a row keeps its height whatever cards are on screen (posters are taller
+        // than wide cards), so the rows below never jump while scrolling sideways.
+        private var posterHeight = 0
+        private var wideHeight = 0
+
         override fun onBindViewHolder(holder: VH, position: Int) {
             val row = rows[position]
+            if (posterHeight == 0) {
+                posterHeight = CardAdapter.cardHeight(holder.list, wide = false)
+                wideHeight = CardAdapter.cardHeight(holder.list, wide = true)
+            }
+            val content = if (row.items.any { !it.isWide }) posterHeight else wideHeight
+            val height = content + holder.list.paddingTop + holder.list.paddingBottom
+            if (holder.list.layoutParams.height != height) {
+                holder.list.layoutParams.height = height
+                holder.list.requestLayout()
+            }
             holder.title.text = row.title
             holder.cards.submit(row.items)
         }

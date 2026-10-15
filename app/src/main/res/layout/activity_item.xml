@@ -61,12 +61,12 @@
 
             <TextView android:id="@+id/next_title" style="@style/Section" android:text="Épisodes suivants" android:visibility="gone" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/next" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" android:visibility="gone" />
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingStart="4dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:paddingEnd="48dp" android:visibility="gone" />
             <Button android:id="@+id/next_season" style="@style/Chip" android:layout_marginTop="20dp" android:drawableStart="@drawable/ic_next" android:visibility="gone" />
 
             <TextView android:id="@+id/cast_title" style="@style/Section" android:text="Distribution" />
             <androidx.recyclerview.widget.RecyclerView android:id="@+id/cast" android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingStart="4dp" android:paddingTop="10dp" android:paddingBottom="10dp" android:paddingEnd="48dp" />
         </LinearLayout>
     </ScrollView>
 </FrameLayout>
