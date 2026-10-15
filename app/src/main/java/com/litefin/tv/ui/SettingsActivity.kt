@@ -7,6 +7,7 @@ import android.text.InputType
 import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.Button
+import com.litefin.tv.App
 import com.litefin.tv.R
 import com.litefin.tv.data.Prefs
 
@@ -66,6 +67,7 @@ class SettingsActivity : BaseActivity() {
                 .show()
         }
         findViewById<Button>(R.id.server).setOnClickListener { editServer() }
+        findViewById<Button>(R.id.cache).setOnClickListener { confirmClearCache() }
         findViewById<Button>(R.id.logout).apply {
             gone(Prefs.current == null)
             setOnClickListener {
@@ -105,7 +107,29 @@ class SettingsActivity : BaseActivity() {
             .show()
     }
 
+    private fun confirmClearCache() {
+        AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+            .setTitle("Vider le cache ?")
+            .setMessage("Les images en cache seront supprimées et l'application redémarrera. Vos profils et réglages sont conservés.")
+            .setPositiveButton("Vider et redémarrer") { _, _ -> clearCacheAndRestart() }
+            .setNegativeButton("Annuler", null)
+            .show()
+            .getButton(AlertDialog.BUTTON_NEGATIVE).requestFocus()
+    }
+
+    private fun clearCacheAndRestart() {
+        App.images.memoryCache?.clear()
+        App.images.diskCache?.clear()
+        cacheDir.listFiles()?.forEach { it.deleteRecursively() }
+        // Relaunch from the launcher activity in a fresh process.
+        val launch = packageManager.getLaunchIntentForPackage(packageName)!!
+        startActivity(Intent.makeRestartActivityTask(launch.component))
+        Runtime.getRuntime().exit(0)
+    }
+
     private fun refresh() {
+        val size = cacheDir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
+        findViewById<Button>(R.id.cache).text = "Vider le cache (%.1f Mo) et redémarrer".format(size / 1_048_576.0)
         findViewById<Button>(R.id.server).text = "Serveur : ${Prefs.server}"
         burn.text = "Toujours graver les sous-titres : " + if (Prefs.burnSubtitles) "OUI" else "NON"
         lang.text = "Langue des sous-titres : " + (languages.firstOrNull { it.first == Prefs.subtitleLang }?.second ?: Prefs.subtitleLang)

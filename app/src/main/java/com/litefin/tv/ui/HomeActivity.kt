@@ -112,21 +112,46 @@ class HomeActivity : BaseActivity() {
         findViewById<Button>(R.id.user).text = "${name ?: ""}  ·  Changer"
     }
 
+    private var pendingScroll: RecyclerView.OnScrollListener? = null
+
+    /** Focuses the first card of [row], animating both the page and the row instead of jumping. */
     private fun focusRowStart(list: RecyclerView, row: Int) {
+        pendingScroll?.let { list.removeOnScrollListener(it) }
+        pendingScroll = null
         val holder = list.findViewHolderForAdapterPosition(row) as? RowsAdapter.VH
         if (holder == null) {
-            list.scrollToPosition(row)
-            list.post { focusRowStart(list, row) }
+            // Row not laid out yet (off screen): scroll smoothly, focus it as soon as it shows up.
+            val listener = object : RecyclerView.OnScrollListener() {
+                override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
+                    if (rv.findViewHolderForAdapterPosition(row) != null) focusRowStart(rv, row)
+                }
+
+                override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                    if (newState == RecyclerView.SCROLL_STATE_IDLE) focusRowStart(rv, row)
+                }
+            }
+            pendingScroll = listener
+            list.addOnScrollListener(listener)
+            list.smoothScrollToPosition(row)
             return
         }
         val cards = holder.list
         val first = cards.findViewHolderForAdapterPosition(0)?.itemView
         if (first != null) {
             first.requestFocus()
-        } else {
-            cards.scrollToPosition(0)
-            cards.post { cards.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus() }
+            return
         }
+        // Row scrolled far to the right: hop close to the start, then glide back to the first card.
+        val lm = cards.layoutManager as RowLayoutManager
+        if (lm.findFirstVisibleItemPosition() > 6) cards.scrollToPosition(6)
+        cards.smoothScrollToPosition(0)
+        cards.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                if (newState != RecyclerView.SCROLL_STATE_IDLE) return
+                rv.removeOnScrollListener(this)
+                rv.findViewHolderForAdapterPosition(0)?.itemView?.requestFocus()
+            }
+        })
     }
 
     private fun signature(list: List<Row>) =
