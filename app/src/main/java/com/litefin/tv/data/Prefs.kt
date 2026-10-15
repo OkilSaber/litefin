@@ -85,6 +85,11 @@ object Prefs {
         get() = sp.getString("subtitleLang", "")!!
         set(v) = sp.edit().putString("subtitleLang", v).apply()
 
+    /** Jump applied by left/right (and rewind/fast-forward keys) during playback. */
+    var seekSeconds: Int
+        get() = sp.getInt("seekSeconds", 10)
+        set(v) = sp.edit().putInt("seekSeconds", v).apply()
+
     var maxBitrate: Int
         get() = sp.getInt("maxBitrate", 10_000_000)
         set(v) = sp.edit().putInt("maxBitrate", v).apply()

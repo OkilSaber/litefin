@@ -84,6 +84,17 @@ class ItemActivity : BaseActivity() {
             gone(!episode)
             text = listOfNotNull(it.seriesName, it.seasonName).joinToString("  ·  ")
         }
+        val series = it.seriesId
+        val season = it.seasonId
+        findViewById<android.view.View>(R.id.nav).gone(!episode || series == null)
+        if (episode && series != null) {
+            findViewById<Button>(R.id.go_series).setOnClickListener { openSeries(series) }
+            findViewById<Button>(R.id.go_season).apply {
+                gone(season == null)
+                text = "Voir la ${it.seasonName?.replaceFirstChar { c -> c.lowercase() } ?: "saison"}"
+                if (season != null) setOnClickListener { startActivity(seasonIntent(season, series)) }
+            }
+        }
         findViewById<TextView>(R.id.title).text = if (episode && it.indexNumber != null) "${it.indexNumber}. ${it.name}" else it.name
         findViewById<TextView>(R.id.genres).apply {
             text = it.genres.joinToString(", ")

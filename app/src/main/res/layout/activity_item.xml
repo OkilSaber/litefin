@@ -53,6 +53,11 @@
                         <Button android:id="@+id/subtitle" style="@style/Btn" android:maxWidth="330dp" android:singleLine="true"
                             android:ellipsize="end" android:textSize="13sp" />
                     </LinearLayout>
+                    <LinearLayout android:id="@+id/nav" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:orientation="horizontal" android:visibility="gone">
+                        <Button android:id="@+id/go_season" style="@style/Btn" android:textSize="13sp" />
+                        <Button android:id="@+id/go_series" style="@style/Btn" android:textSize="13sp" android:text="Voir la série" />
+                    </LinearLayout>
                 </LinearLayout>
             </LinearLayout>
 

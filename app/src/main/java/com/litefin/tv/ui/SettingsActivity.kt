@@ -13,11 +13,13 @@ import com.litefin.tv.data.Prefs
 class SettingsActivity : BaseActivity() {
     private val languages = listOf("" to "Préférence du serveur", "fre" to "Français", "eng" to "Anglais",
         "spa" to "Espagnol", "ger" to "Allemand", "ita" to "Italien", "jpn" to "Japonais")
+    private val seeks = listOf(5, 10, 15, 20, 30)
     private val bitrates = listOf(4_000_000, 8_000_000, 10_000_000, 15_000_000, 20_000_000, 40_000_000, 80_000_000)
 
     private lateinit var burn: Button
     private lateinit var lang: Button
     private lateinit var bitrate: Button
+    private lateinit var seek: Button
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -25,6 +27,7 @@ class SettingsActivity : BaseActivity() {
         burn = findViewById(R.id.burn)
         lang = findViewById(R.id.lang)
         bitrate = findViewById(R.id.bitrate)
+        seek = findViewById(R.id.seek)
 
         burn.setOnClickListener {
             Prefs.burnSubtitles = !Prefs.burnSubtitles
@@ -36,6 +39,16 @@ class SettingsActivity : BaseActivity() {
                 .setTitle("Langue des sous-titres")
                 .setSingleChoiceItems(languages.map { it.second }.toTypedArray(), current) { d, which ->
                     Prefs.subtitleLang = languages[which].first
+                    d.dismiss()
+                    refresh()
+                }
+                .show()
+        }
+        seek.setOnClickListener {
+            AlertDialog.Builder(this, android.R.style.Theme_DeviceDefault_Dialog_Alert)
+                .setTitle("Saut avant / arrière")
+                .setSingleChoiceItems(seeks.map { "$it secondes" }.toTypedArray(), seeks.indexOf(Prefs.seekSeconds)) { d, which ->
+                    Prefs.seekSeconds = seeks[which]
                     d.dismiss()
                     refresh()
                 }
@@ -96,6 +109,7 @@ class SettingsActivity : BaseActivity() {
         findViewById<Button>(R.id.server).text = "Serveur : ${Prefs.server}"
         burn.text = "Toujours graver les sous-titres : " + if (Prefs.burnSubtitles) "OUI" else "NON"
         lang.text = "Langue des sous-titres : " + (languages.firstOrNull { it.first == Prefs.subtitleLang }?.second ?: Prefs.subtitleLang)
+        seek.text = "Saut avant / arrière : ${Prefs.seekSeconds} s"
         bitrate.text = "Débit max : ${Prefs.maxBitrate / 1_000_000} Mb/s"
     }
 }

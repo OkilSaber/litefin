@@ -73,8 +73,8 @@ class PlayerActivity : BaseActivity() {
             .build()
         val p = ExoPlayer.Builder(this)
             .setLoadControl(loadControl)
-            .setSeekBackIncrementMs(10_000)
-            .setSeekForwardIncrementMs(30_000)
+            .setSeekBackIncrementMs(Prefs.seekSeconds * 1000L)
+            .setSeekForwardIncrementMs(Prefs.seekSeconds * 1000L)
             .build()
         p.addListener(listener)
         view.player = p
