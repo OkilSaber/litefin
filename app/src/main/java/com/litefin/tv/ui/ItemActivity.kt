@@ -77,8 +77,8 @@ class ItemActivity : BaseActivity() {
 
     private fun bind(it: Item, episode: Boolean) {
         val poster = findViewById<ImageView>(R.id.poster)
-        val w = ((if (episode) 352 else 240) * dp).toInt()
-        val h = ((if (episode) 198 else 360) * dp).toInt()
+        val w = ((if (episode) 304 else 240) * dp).toInt()
+        val h = ((if (episode) 171 else 360) * dp).toInt()
         poster.layoutParams.width = w
         poster.layoutParams.height = h
         poster.clipRounded()
