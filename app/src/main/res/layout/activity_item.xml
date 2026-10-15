@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include layout="@layout/backdrop" />
+
+    <ScrollView android:id="@+id/scroll" android:layout_width="match_parent" android:layout_height="match_parent"
+        android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingStart="48dp" android:paddingTop="32dp" android:paddingBottom="40dp">
+
+            <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+                android:orientation="horizontal" android:paddingEnd="48dp">
+
+                <ImageView android:id="@+id/poster" android:layout_width="240dp" android:layout_height="360dp"
+                    android:background="@color/card" android:scaleType="centerCrop" android:importantForAccessibility="no" />
+
+                <LinearLayout android:layout_width="0dp" android:layout_height="wrap_content" android:layout_weight="1"
+                    android:layout_marginStart="32dp" android:orientation="vertical">
+
+                    <ImageView android:id="@+id/logo" android:layout_width="wrap_content" android:layout_height="64dp"
+                        android:adjustViewBounds="true" android:maxWidth="320dp" android:scaleType="fitStart"
+                        android:layout_marginBottom="6dp" android:importantForAccessibility="no" android:visibility="gone" />
+                    <TextView android:id="@+id/series" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:textColor="@color/accent" android:textSize="16sp" android:visibility="gone" />
+                    <TextView android:id="@+id/title" style="@style/Title" android:layout_width="wrap_content"
+                        android:layout_height="wrap_content" android:textSize="28sp" />
+                    <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="6dp" android:textColor="@android:color/white" android:textSize="15sp" />
+                    <TextView android:id="@+id/genres" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="4dp" android:textColor="@color/text2" android:textSize="14sp" />
+                    <TextView android:id="@+id/tagline" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:textColor="#FFDDDDDD" android:textSize="15sp"
+                        android:textStyle="italic" android:visibility="gone" />
+                    <TextView android:id="@+id/overview" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="8dp" android:maxLines="5" android:ellipsize="end"
+                        android:textColor="#FFDDDDDD" android:textSize="15sp" />
+                    <TextView android:id="@+id/details" android:layout_width="match_parent" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:lineSpacingExtra="3dp" android:textColor="@color/text2"
+                        android:textSize="13sp" />
+
+                    <LinearLayout android:id="@+id/buttons" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="16dp" android:orientation="horizontal">
+                        <Button android:id="@+id/resume" style="@style/Btn" android:text="Reprendre" />
+                        <Button android:id="@+id/play" style="@style/Btn" android:text="Lire" />
+                        <Button android:id="@+id/played" style="@style/Btn" android:singleLine="true" />
+                    </LinearLayout>
+                    <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp" android:orientation="horizontal">
+                        <Button android:id="@+id/audio" style="@style/Btn" android:maxWidth="330dp" android:singleLine="true"
+                            android:ellipsize="end" android:textSize="13sp" />
+                        <Button android:id="@+id/subtitle" style="@style/Btn" android:maxWidth="330dp" android:singleLine="true"
+                            android:ellipsize="end" android:textSize="13sp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView android:id="@+id/next_title" style="@style/Section" android:text="Épisodes suivants" android:visibility="gone" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/next" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" android:visibility="gone" />
+            <Button android:id="@+id/next_season" style="@style/Btn" android:layout_marginTop="20dp" android:visibility="gone" />
+
+            <TextView android:id="@+id/cast_title" style="@style/Section" android:text="Distribution" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/cast" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>

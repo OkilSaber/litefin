@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <uses-feature android:name="android.software.leanback" android:required="false" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />
+
+    <application
+        android:name=".App"
+        android:allowBackup="false"
+        android:banner="@drawable/banner"
+        android:icon="@mipmap/ic_launcher"
+        android:label="LiteFin"
+        android:supportsRtl="false"
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
+
+        <activity
+            android:name=".ui.UsersActivity"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ui.HomeActivity" />
+        <activity android:name=".ui.LoginActivity" android:windowSoftInputMode="adjustResize" />
+        <activity android:name=".ui.LibraryActivity" />
+        <activity android:name=".ui.SeriesActivity" />
+        <activity android:name=".ui.SeasonActivity" />
+        <activity android:name=".ui.ItemActivity" />
+        <activity android:name=".ui.SettingsActivity" />
+        <activity
+            android:name=".ui.PlayerActivity"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation"
+            android:theme="@style/PlayerTheme" />
+    </application>
+</manifest>

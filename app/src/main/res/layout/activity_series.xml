@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <include layout="@layout/backdrop" />
+
+    <ScrollView android:layout_width="match_parent" android:layout_height="match_parent" android:fillViewport="true">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="wrap_content"
+            android:orientation="vertical" android:paddingStart="48dp" android:paddingTop="32dp" android:paddingBottom="40dp">
+
+            <ImageView android:id="@+id/logo" android:layout_width="wrap_content" android:layout_height="110dp"
+                android:adjustViewBounds="true" android:maxWidth="460dp" android:scaleType="fitStart"
+                android:importantForAccessibility="no" />
+            <TextView android:id="@+id/title" style="@style/Title" android:layout_width="wrap_content"
+                android:layout_height="wrap_content" android:textSize="34sp" android:visibility="gone" />
+            <TextView android:id="@+id/meta" android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="10dp" android:textColor="@color/text2" android:textSize="15sp" />
+            <TextView android:id="@+id/overview" android:layout_width="900dp" android:layout_height="wrap_content"
+                android:layout_marginTop="8dp" android:maxLines="4" android:ellipsize="end"
+                android:textColor="#FFDDDDDD" android:textSize="15sp" />
+
+            <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
+                android:layout_marginTop="16dp" android:orientation="horizontal">
+                <Button android:id="@+id/resume" style="@style/Btn" android:text="Reprendre" />
+                <Button android:id="@+id/played" style="@style/Btn" />
+            </LinearLayout>
+
+            <TextView style="@style/Section" android:text="Saisons" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/seasons" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+
+            <TextView android:id="@+id/cast_title" style="@style/Section" android:text="Distribution" />
+            <androidx.recyclerview.widget.RecyclerView android:id="@+id/cast" android:layout_width="match_parent"
+                android:layout_height="wrap_content" android:clipToPadding="false" android:paddingEnd="48dp" />
+        </LinearLayout>
+    </ScrollView>
+</FrameLayout>
