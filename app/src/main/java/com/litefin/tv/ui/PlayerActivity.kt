@@ -22,6 +22,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.TimeBar
 import com.litefin.tv.App
 import com.litefin.tv.R
 import com.litefin.tv.api.Api
@@ -40,6 +41,9 @@ class PlayerActivity : BaseActivity() {
     private lateinit var view: PlayerView
     private lateinit var message: TextView
     private lateinit var playButton: ImageButton
+    private lateinit var timeBar: DefaultTimeBar
+    private lateinit var preview: SeekPreview
+    private var scrubbing = false
     private var player: ExoPlayer? = null
 
     private var source: MediaSource? = null
@@ -64,7 +68,7 @@ class PlayerActivity : BaseActivity() {
         findViewById<View>(R.id.ctl_audio).setOnClickListener { chooseAudio() }
         findViewById<View>(R.id.ctl_subs).setOnClickListener { chooseSubtitle() }
         view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
-            if (visibility == View.VISIBLE) playButton.requestFocus()
+            if (visibility == View.VISIBLE) playButton.requestFocus() else preview.hide()
         })
 
         // Small buffers: the device has very little RAM.
@@ -81,8 +85,28 @@ class PlayerActivity : BaseActivity() {
         view.player = p
         player = p
         // Left/right on the focused progress bar use the same step (its default is 1/20 of the duration).
-        view.findViewById<DefaultTimeBar>(androidx.media3.ui.R.id.exo_progress)
-            .setKeyTimeIncrement(Prefs.seekSeconds * 1000L)
+        timeBar = view.findViewById(androidx.media3.ui.R.id.exo_progress)
+        timeBar.setKeyTimeIncrement(Prefs.seekSeconds * 1000L)
+        preview = SeekPreview(scope, findViewById(R.id.preview), findViewById(R.id.preview_image), findViewById(R.id.preview_time))
+        // Seeking (from the bar, or left/right while the controls are hidden) pauses and shows a preview
+        // of the landing point; the player view seeks when the scrub ends.
+        timeBar.addListener(object : TimeBar.OnScrubListener {
+            override fun onScrubStart(timeBar: TimeBar, position: Long) {
+                scrubbing = true
+                player?.playWhenReady = false
+                showPreview(position)
+            }
+
+            override fun onScrubMove(timeBar: TimeBar, position: Long) = showPreview(position)
+
+            override fun onScrubStop(timeBar: TimeBar, position: Long, canceled: Boolean) {
+                scrubbing = false
+            }
+        })
+        launch {
+            preview.trickplay = Api.trickplay(itemId)
+            Log.i("LiteFin", "trickplay: " + (preview.trickplay?.let { "${it.width}x${it.height} every ${it.interval} ms" } ?: "none"))
+        }
 
         start(intent.getLongExtra("startTicks", 0L) / 10_000)
     }
@@ -247,6 +271,7 @@ class PlayerActivity : BaseActivity() {
     private val listener = object : Player.Listener {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             playButton.setImageResource(if (playWhenReady) R.drawable.ic_pause else R.drawable.ic_play)
+            if (playWhenReady) preview.hide()
             if (started) report("progress")
         }
 
@@ -295,19 +320,44 @@ class PlayerActivity : BaseActivity() {
         }
     }
 
+    private fun showPreview(position: Long) {
+        val duration = player?.duration?.takeIf { it > 0 } ?: return
+        preview.show(position, position.toFloat() / duration, timeBar)
+    }
+
+    /** Sends a seek key to the progress bar (showing the controls first), so both ways of seeking behave the same. */
+    private fun seekWithBar(event: KeyEvent): Boolean {
+        if (!view.isControllerFullyVisible) view.showController()
+        timeBar.requestFocus()
+        val key = when (event.keyCode) {
+            KeyEvent.KEYCODE_MEDIA_REWIND, KeyEvent.KEYCODE_DPAD_LEFT -> KeyEvent.KEYCODE_DPAD_LEFT
+            else -> KeyEvent.KEYCODE_DPAD_RIGHT
+        }
+        timeBar.onKeyDown(key, KeyEvent(event.downTime, event.eventTime, event.action, key, event.repeatCount))
+        return true
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val p = player
-        if (p != null && event.action == KeyEvent.ACTION_DOWN && !view.isControllerFullyVisible) {
-            when (event.keyCode) {
-                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_MEDIA_REWIND -> { p.seekBack(); return true }
-                KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> { p.seekForward(); return true }
-                // Center: instant play/pause. Pausing also shows the controls (they stay up while paused).
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    p.playWhenReady = !p.playWhenReady
-                    if (!p.playWhenReady) view.showController()
-                    return true
+        if (p != null && event.action == KeyEvent.ACTION_DOWN) {
+            val code = event.keyCode
+            if (code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD || code == KeyEvent.KEYCODE_MEDIA_REWIND) return seekWithBar(event)
+            if (!view.isControllerFullyVisible) {
+                when (code) {
+                    KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT -> return seekWithBar(event)
+                    // Center: instant play/pause. Pausing also shows the controls (they stay up while paused).
+                    KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                        p.playWhenReady = !p.playWhenReady
+                        if (!p.playWhenReady) view.showController()
+                        return true
+                    }
+                    KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { view.showController(); return true }
                 }
-                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> { view.showController(); return true }
+            } else if ((code == KeyEvent.KEYCODE_DPAD_CENTER || code == KeyEvent.KEYCODE_ENTER) && currentFocus === timeBar) {
+                // Center on the bar: apply a pending seek right away, then play/pause.
+                if (scrubbing) timeBar.onKeyDown(code, event)
+                p.playWhenReady = !p.playWhenReady
+                return true
             }
         }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && view.isControllerFullyVisible) {
@@ -322,6 +372,7 @@ class PlayerActivity : BaseActivity() {
         if (started) report("stopped")
         started = false
         progressJob?.cancel()
+        preview.release()
         player?.release()
         player = null
         view.player = null

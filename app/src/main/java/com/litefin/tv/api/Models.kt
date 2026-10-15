@@ -3,6 +3,18 @@ package com.litefin.tv.api
 import org.json.JSONArray
 import org.json.JSONObject
 
+/** Seek previews: JPEG tiles of [tileWidth] x [tileHeight] thumbnails, one every [interval] ms. */
+class Trickplay(
+    val itemId: String,
+    val mediaSourceId: String,
+    val width: Int,
+    val height: Int,
+    val tileWidth: Int,
+    val tileHeight: Int,
+    val count: Int,
+    val interval: Long,
+)
+
 class Person(val id: String, val name: String, val role: String?, val type: String, val imageTag: String?)
 
 class Item(

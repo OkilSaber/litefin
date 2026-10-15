@@ -145,6 +145,32 @@ object Api {
         return Item.list(get("/Shows/$seriesId/Episodes?userId=$user$s$l&Fields=Overview&$LIST_PARAMS"))
     }
 
+    /** Trickplay (seek preview) info for an item, null if the server has none. Picks the smallest width >= 240. */
+    suspend fun trickplay(itemId: String): Trickplay? {
+        val item = get("/Items?ids=$itemId&userId=$user&Fields=Trickplay").optJSONArray("Items")?.optJSONObject(0)
+        val bySource = item?.optJSONObject("Trickplay") ?: return null
+        val sourceId = bySource.keys().asSequence().firstOrNull() ?: return null
+        val byWidth = bySource.getJSONObject(sourceId)
+        val widths = byWidth.keys().asSequence().mapNotNull { it.toIntOrNull() }.sorted().toList()
+        val width = widths.firstOrNull { it >= 240 } ?: widths.lastOrNull() ?: return null
+        val t = byWidth.getJSONObject(width.toString())
+        return Trickplay(
+            itemId, sourceId, t.optInt("Width"), t.optInt("Height"), t.optInt("TileWidth"), t.optInt("TileHeight"),
+            t.optInt("ThumbnailCount"), t.optLong("Interval"),
+        )
+    }
+
+    suspend fun trickplayTile(t: Trickplay, index: Int): ByteArray = withContext(Dispatchers.IO) {
+        val req = Request.Builder()
+            .url("${Prefs.server}/Videos/${t.itemId}/Trickplay/${t.width}/$index.jpg?mediaSourceId=${t.mediaSourceId}")
+            .header("Authorization", authHeader(Prefs.token))
+            .build()
+        http.newCall(req).execute().use { res ->
+            if (!res.isSuccessful) throw ApiException(res.code, "HTTP ${res.code}")
+            res.body!!.bytes()
+        }
+    }
+
     suspend fun setPlayed(id: String, played: Boolean) {
         raw(if (played) "POST" else "DELETE", "/UserPlayedItems/$id?userId=$user")
     }
