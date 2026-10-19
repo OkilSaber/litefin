@@ -54,6 +54,10 @@ demande que les champs que l'écran affiche.
 - Choix des pistes audio et sous-titres avant ou pendant la lecture, et saut avant/arrière réglable (5 à 30 s).
 - Avec les contrôles masqués, OK met en pause et ←/→ avance ou recule.
 
+**Mises à jour**
+- LiteFin vérifie la dernière release GitHub au lancement (au plus toutes les 6 h) et depuis les Réglages. S'il y a plus
+  récent, il télécharge l'APK et lance l'installation (Android demande juste de confirmer).
+
 **Navigation**
 - Profils multiples (« Qui regarde ? »), ajout par identifiants ou par **Connexion rapide**.
 - Accueil : Reprendre, À suivre, bibliothèques et ajouts récents.
