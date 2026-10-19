@@ -54,6 +54,10 @@ class SettingsActivity : BaseActivity() {
         }
         findViewById<Button>(R.id.server).setOnClickListener { editServer() }
         findViewById<Button>(R.id.cache).setOnClickListener { confirmClearCache() }
+        findViewById<Button>(R.id.update).apply {
+            text = "Rechercher une mise à jour  ·  version ${com.litefin.tv.update.Updater.installedVersion(this@SettingsActivity)}"
+            setOnClickListener { checkForUpdate(manual = true) }
+        }
         findViewById<Button>(R.id.logout).apply {
             gone(Prefs.current == null)
             setOnClickListener {

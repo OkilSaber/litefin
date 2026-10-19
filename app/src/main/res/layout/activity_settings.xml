@@ -15,6 +15,7 @@
     <Button android:id="@+id/seek" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/bitrate" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/cache" style="@style/Btn" android:layout_marginBottom="10dp" />
+    <Button android:id="@+id/update" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/logout" style="@style/Btn" android:layout_marginBottom="10dp" android:text="Changer d'utilisateur" />
 
 </LinearLayout>

@@ -18,7 +18,9 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
@@ -109,7 +111,14 @@ class PlayerActivity : BaseActivity() {
             .setTargetBufferBytes(32 * 1024 * 1024)
             .setPrioritizeTimeOverSizeThresholds(false)
             .build()
+        // Same auth header as the API calls, and patient timeouts: a busy server (burn-in transcode
+        // starting, trickplay generation...) can take well over the default 8 s for the first segment.
+        val http = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(15_000)
+            .setReadTimeoutMs(30_000)
+            .setDefaultRequestProperties(mapOf("Authorization" to Api.authorization()))
         val p = ExoPlayer.Builder(this)
+            .setMediaSourceFactory(DefaultMediaSourceFactory(http))
             .setLoadControl(loadControl)
             .setSeekBackIncrementMs(Prefs.seekSeconds * 1000L)
             .setSeekForwardIncrementMs(Prefs.seekSeconds * 1000L)

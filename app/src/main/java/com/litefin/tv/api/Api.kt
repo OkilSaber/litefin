@@ -17,13 +17,16 @@ class ApiException(val code: Int, msg: String) : IOException(msg)
 
 object Api {
     private const val CLIENT = "LiteFin"
-    private const val VERSION = "1.0.0"
+    private const val VERSION = "1.1.0"
     private val JSON = "application/json".toMediaType()
 
     val http: OkHttpClient = OkHttpClient.Builder()
         .connectTimeout(10, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
         .build()
+
+    /** Header the player sends too, so streams don't depend on a token in the URL. */
+    fun authorization(): String = authHeader(Prefs.token)
 
     private fun authHeader(token: String?) = buildString {
         append("MediaBrowser Client=\"").append(CLIENT)
@@ -245,7 +248,8 @@ object Api {
     /** Absolute URL with the token in the query, for ExoPlayer requests. */
     fun absolute(path: String): String {
         val url = if (path.startsWith("http")) path else Prefs.server + path
+        // ApiKey is the current query form (api_key is a deprecated mechanism Jellyfin 12 can refuse).
         return if (url.contains("api_key=", true) || url.contains("ApiKey=", true)) url
-        else url + (if ('?' in url) "&" else "?") + "api_key=" + Prefs.token
+        else url + (if ('?' in url) "&" else "?") + "ApiKey=" + Prefs.token
     }
 }

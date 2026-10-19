@@ -22,6 +22,42 @@ import kotlinx.coroutines.launch
 abstract class BaseActivity : Activity() {
     val scope: CoroutineScope = MainScope()
 
+    override fun onResume() {
+        super.onResume()
+        // Back from the "install unknown apps" screen with a downloaded update waiting.
+        val apk = com.litefin.tv.update.Updater.pending
+        if (apk != null && packageManager.canRequestPackageInstalls()) {
+            com.litefin.tv.update.Updater.pending = null
+            runCatching { com.litefin.tv.update.Updater.install(this, apk) }.onFailure { toast("Mise à jour impossible : ${it.message}") }
+        }
+    }
+
+    /**
+     * Checks GitHub for a newer release; if there is one, downloads it and starts the install.
+     * [manual] (from the settings) reports "up to date" and errors; the automatic check stays silent.
+     */
+    fun checkForUpdate(manual: Boolean) = scope.launch {
+        val updater = com.litefin.tv.update.Updater
+        try {
+            val release = updater.check(this@BaseActivity)
+            if (release == null) {
+                if (manual) toast("LiteFin est à jour (${updater.installedVersion(this@BaseActivity)})")
+                return@launch
+            }
+            toast("Mise à jour ${release.version} : téléchargement…")
+            val apk = updater.download(this@BaseActivity, release)
+            if (updater.ensureInstallAllowed(this@BaseActivity)) updater.install(this@BaseActivity, apk)
+            else {
+                updater.pending = apk
+                toast("Autorise LiteFin à installer des applications, puis reviens : l'installation se lancera.")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            if (manual) toast("Vérification impossible : ${e.message ?: e.javaClass.simpleName}")
+        }
+    }
+
     /** Open side panel, if any: BACK closes it first. */
     var panel: SidePanel? = null
 

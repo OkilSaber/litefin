@@ -31,6 +31,12 @@ class UsersActivity : BaseActivity() {
         findViewById<Button>(R.id.settings).setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
+        // Automatic update check at launch, at most every 6 hours (GitHub API, one small request).
+        val now = System.currentTimeMillis()
+        if (now - Prefs.lastUpdateCheck > 6 * 3600_000L) {
+            Prefs.lastUpdateCheck = now
+            checkForUpdate(manual = false)
+        }
     }
 
     override fun onResume() {

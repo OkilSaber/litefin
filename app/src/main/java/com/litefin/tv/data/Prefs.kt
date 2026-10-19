@@ -94,6 +94,11 @@ object Prefs {
     fun libraryState(id: String): String? = sp.getString("lib_$id", null)
     fun setLibraryState(id: String, state: String) = sp.edit().putString("lib_$id", state).apply()
 
+    /** Last automatic update check (epoch ms), to ask GitHub at most every few hours. */
+    var lastUpdateCheck: Long
+        get() = sp.getLong("lastUpdateCheck", 0)
+        set(v) = sp.edit().putLong("lastUpdateCheck", v).apply()
+
     var maxBitrate: Int
         get() = sp.getInt("maxBitrate", 10_000_000)
         set(v) = sp.edit().putInt("maxBitrate", v).apply()
