@@ -31,6 +31,7 @@ import com.litefin.tv.api.Chapter
 import com.litefin.tv.api.Segment
 import com.litefin.tv.api.DeviceProfile
 import com.litefin.tv.api.MediaSource
+import com.litefin.tv.api.MediaStream
 import com.litefin.tv.api.PlaybackInfo
 import com.litefin.tv.data.Prefs
 import kotlinx.coroutines.Job
@@ -67,6 +68,7 @@ class PlayerActivity : BaseActivity() {
     private var forceTranscode = false
     private var started = false
     private var progressJob: Job? = null
+    private var stallJob: Job? = null
     /** Loads run one at a time, so a replaced session is always stopped (no orphan transcode). */
     private val loadLock = kotlinx.coroutines.sync.Mutex()
     /** Key whose ACTION_DOWN we consumed: its ACTION_UP must not reach PlayerView (it would show the controls). */
@@ -291,21 +293,12 @@ class PlayerActivity : BaseActivity() {
         val src = info.source
         // Tracks picked on the item page win over the server defaults.
         audioIndex = if (intent.hasExtra("audio")) intent.getIntExtra("audio", 0) else src.defaultAudio
-        subtitleIndex = if (intent.hasExtra("subtitle")) intent.getIntExtra("subtitle", -1) else pickSubtitle(src)
+        subtitleIndex = if (intent.hasExtra("subtitle")) intent.getIntExtra("subtitle", -1) else autoSubtitle(src.subtitles, src.defaultSubtitle)
         // Same tracks as the server's defaults and no burn-in: the first answer is already the right one.
         val same = audioIndex == src.defaultAudio && subtitleIndex == (src.defaultSubtitle ?: -1) &&
             !(Prefs.burnSubtitles && subtitleIndex >= 0)
         Log.i("LiteFin", "playbackInfo: " + if (same) "reused first answer" else "second request (tracks/burn-in)")
         load(startMs, if (same) info else null)
-    }
-
-    private fun pickSubtitle(src: MediaSource): Int {
-        val lang = Prefs.subtitleLang
-        if (lang.isNotEmpty()) {
-            val candidates = src.subtitles.filter { it.language.equals(lang, true) }
-            return (candidates.firstOrNull { !it.title.contains("forc", true) } ?: candidates.firstOrNull())?.index ?: -1
-        }
-        return src.defaultSubtitle ?: -1
     }
 
     /**
@@ -385,6 +378,7 @@ class PlayerActivity : BaseActivity() {
         p.setMediaItem(builder.build(), positionMs)
         p.prepare()
         p.playWhenReady = true
+        if (playMethod == "DirectPlay") watchDirectPlay(p) else stallJob?.cancel()
         report("start")
         if (progressJob == null) progressJob = launch {
             while (true) {
@@ -393,6 +387,23 @@ class PlayerActivity : BaseActivity() {
             }
         }
         started = true
+    }
+
+    /**
+     * Some boxes accept a file for direct play, then freeze on the first frame or buffer forever without any
+     * error. If less than a second of video got rendered after 15 s of playing, fall back to a transcode.
+     */
+    private fun watchDirectPlay(p: ExoPlayer) {
+        stallJob?.cancel()
+        stallJob = launch {
+            delay(15_000)
+            if (player !== p || playMethod != "DirectPlay" || forceTranscode || !p.playWhenReady) return@launch
+            val frames = p.videoDecoderCounters?.renderedOutputBufferCount ?: return@launch
+            if (frames >= 24) return@launch
+            Log.i("LiteFin", "direct play stalled (state=${p.playbackState} frames=$frames): transcoding")
+            forceTranscode = true
+            reload()
+        }
     }
 
     /** In direct play the container keeps all audio tracks: pick the one matching the Jellyfin index. */
@@ -582,5 +593,21 @@ class PlayerActivity : BaseActivity() {
         player?.release()
         player = null
         finish()
+    }
+
+    companion object {
+        /**
+         * Subtitle used when none was picked on the item page. The server's per-user default already holds the
+         * remembered track (Jellyfin's "remember selections"): when it differs from the file's own default it is a
+         * personal choice and wins. Otherwise the language setting of LiteFin applies, if any.
+         */
+        fun autoSubtitle(subs: List<MediaStream>, serverDefault: Int?): Int {
+            val server = serverDefault ?: -1
+            val fileDefault = subs.firstOrNull { it.isDefault }?.index ?: -1
+            val lang = Prefs.subtitleLang
+            if (server != fileDefault || lang.isEmpty()) return server
+            val candidates = subs.filter { it.language.equals(lang, true) }
+            return (candidates.firstOrNull { !it.title.contains("forc", true) } ?: candidates.firstOrNull())?.index ?: -1
+        }
     }
 }

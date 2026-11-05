@@ -65,6 +65,9 @@ data class Item(
     val streams: List<MediaStream>,
     val container: String?,
     val chapters: List<Chapter>,
+    /** Server's track choice for this user: the remembered one if any, else the preferences / file defaults. */
+    val defaultAudio: Int?,
+    val defaultSubtitle: Int?,
 ) {
     val isWide: Boolean get() = type == "Episode" || type == "CollectionFolder" || type == "UserView"
 
@@ -141,6 +144,8 @@ data class Item(
                 chapters = o.optJSONArray("Chapters").map {
                     Chapter(it.optString("Name"), it.optLong("StartPositionTicks") / 10_000)
                 },
+                defaultAudio = source?.int("DefaultAudioStreamIndex"),
+                defaultSubtitle = source?.int("DefaultSubtitleStreamIndex"),
             )
         }
 
@@ -156,6 +161,8 @@ class MediaStream(
     val language: String?,
     val title: String,
     val isForced: Boolean,
+    /** Flagged default in the file itself (not the server's per-user choice). */
+    val isDefault: Boolean,
     val deliveryUrl: String?,
     val width: Int,
     val height: Int,
@@ -191,6 +198,7 @@ private fun stream(s: JSONObject) = MediaStream(
     language = s.str("Language"),
     title = s.str("DisplayTitle") ?: s.str("Language") ?: "Piste ${s.getInt("Index")}",
     isForced = s.optBoolean("IsForced"),
+    isDefault = s.optBoolean("IsDefault"),
     deliveryUrl = s.str("DeliveryUrl"),
     width = s.optInt("Width"),
     height = s.optInt("Height"),

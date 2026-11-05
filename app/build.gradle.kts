@@ -10,8 +10,8 @@ android {
         applicationId = "com.litefin.tv"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2 // must grow on every release, or the in-app update is refused
-        versionName = "1.1.0"
+        versionCode = 3 // must grow on every release, or the in-app update is refused
+        versionName = "1.1.1"
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 

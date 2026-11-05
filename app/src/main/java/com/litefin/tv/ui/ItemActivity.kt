@@ -49,11 +49,9 @@ class ItemActivity : BaseActivity() {
 
     private fun load(): Job = launch {
         awaitPlaybackReport()
-        // First visit: the full item. Coming back: only the resume position / watched state can change.
-        val it = item?.let { old ->
-            val (position, played) = Api.userData(id)
-            old.copy(positionTicks = position, played = played)
-        } ?: Api.item(id)
+        // Full item every time: coming back from the player, the resume position, watched state and remembered
+        // tracks may all have changed (only the single-item endpoint applies remembered tracks).
+        val it = Api.item(id)
         item = it
         val episode = it.type == "Episode"
         if (!loaded) bind(it, episode)
@@ -157,25 +155,23 @@ class ItemActivity : BaseActivity() {
         val item = item ?: return
         val a = item.audio
         val s = item.subtitles
+        // Nothing picked here: show what the player will use (remembered track, else preferences).
         findViewById<Button>(R.id.audio).apply {
             gone(a.size < 2)
-            text = a.firstOrNull { it.index == audio }?.shortLabel ?: "Audio auto"
+            text = a.firstOrNull { it.index == (audio ?: item.defaultAudio) }?.shortLabel ?: "Audio auto"
         }
         findViewById<Button>(R.id.subtitle).apply {
             gone(s.isEmpty())
-            val label = when (val sub = subtitle) {
-                null -> "Auto"
-                -1 -> "Aucun"
-                else -> s.firstOrNull { it.index == sub }?.shortLabel ?: "Auto"
-            }
-            text = (if (subtitle == null) "Sous-titres auto" else label) + if (Prefs.burnSubtitles && subtitle != -1) " · gravés" else ""
+            val sub = subtitle ?: PlayerActivity.autoSubtitle(s, item.defaultSubtitle)
+            val track = s.firstOrNull { it.index == sub }
+            text = if (track == null) "Sans sous-titres" else track.shortLabel + if (Prefs.burnSubtitles) " · gravés" else ""
         }
     }
 
     private fun chooseAudio() {
         val tracks = item?.audio ?: return
         val current = tracks.indexOfFirst { it.index == audio } + 1
-        choose("Audio", listOf("Auto (préférences)") + tracks.map { it.title }, current) { which ->
+        choose("Audio", listOf("Auto (mémorisé ou préférences)") + tracks.map { it.title }, current) { which ->
             audio = if (which == 0) null else tracks[which - 1].index
             updateTrackButtons()
         }
@@ -183,7 +179,7 @@ class ItemActivity : BaseActivity() {
 
     private fun chooseSubtitle() {
         val tracks: List<MediaStream> = item?.subtitles ?: return
-        val labels = listOf("Auto (préférences)", "Aucun") + tracks.map { it.title }
+        val labels = listOf("Auto (mémorisé ou préférences)", "Aucun") + tracks.map { it.title }
         val current = when (val s = subtitle) {
             null -> 0
             -1 -> 1
