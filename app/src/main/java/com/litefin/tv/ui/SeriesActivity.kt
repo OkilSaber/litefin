@@ -40,7 +40,7 @@ class SeriesActivity : BaseActivity() {
         awaitPlaybackReport()
         // First visit: full series + seasons in parallel. Coming back: watched state + seasons only.
         val seasonsCall = async { Api.seasons(id) }
-        val series = series?.let { old -> old.copy(played = Api.userData(id).second) } ?: Api.item(id)
+        val series = series?.let { old -> Api.userData(id).let { u -> old.copy(played = u.played, isFavorite = u.favorite) } } ?: Api.item(id)
         this@SeriesActivity.series = series
         val list = seasonsCall.await()
         if (!loaded) bindArt(series, findViewById(R.id.logo), findViewById(R.id.title))
@@ -59,6 +59,7 @@ class SeriesActivity : BaseActivity() {
             isActivated = series.played
             setOnClickListener { launch { Api.setPlayed(series.id, !series.played); load() } }
         }
+        bindFavorite(findViewById(R.id.favorite), series) { load() }
         seasons.submit(list)
         if (!loaded) {
             val cast = series.people.filter { it.type == "Actor" }.take(30)

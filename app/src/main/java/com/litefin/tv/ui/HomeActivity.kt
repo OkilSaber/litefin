@@ -16,6 +16,7 @@ import com.litefin.tv.api.Item
 import com.litefin.tv.data.Prefs
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.launch
 
 class HomeActivity : BaseActivity() {
     private class Row(val title: String, val items: List<Item>)
@@ -117,6 +118,9 @@ class HomeActivity : BaseActivity() {
             val result = ArrayList<Row>()
             resume.await().takeIf { it.isNotEmpty() }?.let { result += Row("Reprendre", it) }
             nextUp.await().takeIf { it.isNotEmpty() }?.let { result += Row("À suivre", it) }
+            // Same lists on the Android TV home screen (also replaces another profile's rows).
+            val (r, n) = resume.await() to nextUp.await()
+            App.background.launch { com.litefin.tv.tv.Channels.sync(applicationContext, r, n) }
             result += Row("Bibliothèques", views)
             latest.awaitAll().filter { it.items.isNotEmpty() }.forEach { result += it }
 

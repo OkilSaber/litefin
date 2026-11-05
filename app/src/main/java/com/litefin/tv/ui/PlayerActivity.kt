@@ -21,6 +21,7 @@ import androidx.media3.exoplayer.DefaultLoadControl
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.DefaultTimeBar
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.TimeBar
@@ -28,6 +29,7 @@ import com.litefin.tv.App
 import com.litefin.tv.R
 import com.litefin.tv.api.Api
 import com.litefin.tv.api.Chapter
+import com.litefin.tv.api.Item
 import com.litefin.tv.api.Segment
 import com.litefin.tv.api.DeviceProfile
 import com.litefin.tv.api.MediaSource
@@ -56,6 +58,13 @@ class PlayerActivity : BaseActivity() {
     private var chapters: List<Chapter> = emptyList()
     private var skipSegment: Segment? = null
     private var skipShownAt = 0L
+    private lateinit var nextBanner: android.widget.Button
+    /** Episode after this one (series only), loaded in the background. */
+    private var nextItem: Item? = null
+    /** When the "next episode" countdown ends (uptime ms), 0 = not counting. */
+    private var nextAt = 0L
+    /** Back pressed on the banner: stays hidden until we leave the credits. */
+    private var nextDismissed = false
     private var lastKey = 0L
     private var fading = false
     private var player: ExoPlayer? = null
@@ -65,6 +74,8 @@ class PlayerActivity : BaseActivity() {
     private var playMethod = "DirectPlay"
     private var audioIndex: Int? = null
     private var subtitleIndex = -1
+    /** Offset of text subtitles shown by ExoPlayer (not burned in), this player session only. */
+    private var subtitleOffsetMs = 0L
     private var forceTranscode = false
     private var started = false
     private var progressJob: Job? = null
@@ -92,11 +103,14 @@ class PlayerActivity : BaseActivity() {
         playButton.setOnClickListener { player?.let { it.playWhenReady = !it.playWhenReady } }
         findViewById<View>(R.id.ctl_audio).setOnClickListener { chooseAudio() }
         findViewById<View>(R.id.ctl_subs).setOnClickListener { chooseSubtitle() }
+        findViewById<View>(R.id.ctl_aspect).setOnClickListener { chooseAspect() }
         skip = findViewById(R.id.skip)
         skip.setOnClickListener { skipCurrentSegment() }
+        nextBanner = findViewById(R.id.next_episode)
+        nextBanner.setOnClickListener { playNext() }
         findViewById<View>(R.id.ctl_next_chapter).setOnClickListener { nextChapter() }
         // The skip pill joins the D-pad flow when the controls are up (above the bar / right of the last button).
-        findViewById<View>(R.id.ctl_subs).nextFocusRightId = R.id.skip
+        findViewById<View>(R.id.ctl_aspect).nextFocusRightId = R.id.skip
         skip.nextFocusDownId = R.id.ctl_play
         view.setControllerVisibilityListener(PlayerView.ControllerVisibilityListener { visibility ->
             if (visibility == View.VISIBLE) {
@@ -127,6 +141,7 @@ class PlayerActivity : BaseActivity() {
             .build()
         p.addListener(listener)
         view.player = p
+        view.resizeMode = Prefs.resizeMode
         player = p
         // Left/right on the focused progress bar use the same step (its default is 1/20 of the duration).
         timeBar = view.findViewById(androidx.media3.ui.R.id.exo_progress)
@@ -166,6 +181,8 @@ class PlayerActivity : BaseActivity() {
             if (marks.isNotEmpty()) view.setExtraAdGroupMarkers(marks.toLongArray(), BooleanArray(marks.size))
             ctlNextChapter.gone(chapters.isEmpty())
             segments = Api.segments(itemId)
+            val series = intent.getStringExtra("seriesId")
+            if (series != null && Prefs.autoNext) nextItem = runCatching { Api.nextEpisode(series, itemId) }.getOrNull()
             Log.i("LiteFin", "trickplay: ${trickplay != null}, chapters: ${chapters.size}, segments: " +
                 segments.joinToString { "${it.type} ${it.startMs / 1000}-${it.endMs / 1000}s" })
         }
@@ -182,6 +199,7 @@ class PlayerActivity : BaseActivity() {
 
     private fun tick() {
         val p = player ?: return
+        updateNext()
         updateSkip()
         if (view.isControllerFullyVisible) {
             refreshControls()
@@ -254,7 +272,7 @@ class PlayerActivity : BaseActivity() {
             skipShownAt = now()
             if (seg != null) skip.text = seg.skipLabel
         }
-        val visible = seg != null && (controls || now() - skipShownAt < 8000)
+        val visible = seg != null && (controls || now() - skipShownAt < 8000) && nextAt == 0L
         // Sit above the control bar when it is up.
         skip.translationY = if (controls) -(ctlBar.height - 24 * dp) else 0f
         if (visible && skip.visibility != View.VISIBLE) {
@@ -275,9 +293,9 @@ class PlayerActivity : BaseActivity() {
         val seg = skipSegment ?: return
         val duration = p.duration
         if (duration > 0 && seg.endMs >= duration - 2000) {
-            // Credits running to the very end: the episode is done, close the player (reported as watched).
+            // Credits running to the very end: the episode is done (reported as watched), on to the next one.
             p.seekTo(duration)
-            finish()
+            if (nextItem != null) playNext() else finish()
             return
         }
         p.seekTo(seg.endMs)
@@ -357,9 +375,12 @@ class PlayerActivity : BaseActivity() {
         val sub = src.subtitles.firstOrNull { it.index == subtitleIndex }
         val external = sub?.deliveryUrl?.takeIf { !burning }
         if (external != null) {
+            val srt = external.contains(".srt", true)
+            val uri = if (subtitleOffsetMs == 0L) Uri.parse(Api.absolute(external))
+            else SubtitleShift.file(cacheDir, Api.absolute(external), "$itemId-${sub.index}", subtitleOffsetMs, srt)
             builder.setSubtitleConfigurations(listOf(
-                MediaItem.SubtitleConfiguration.Builder(Uri.parse(Api.absolute(external)))
-                    .setMimeType(if (external.contains(".srt", true)) MimeTypes.APPLICATION_SUBRIP else MimeTypes.TEXT_VTT)
+                MediaItem.SubtitleConfiguration.Builder(uri)
+                    .setMimeType(if (srt) MimeTypes.APPLICATION_SUBRIP else MimeTypes.TEXT_VTT)
                     .setLanguage(sub.language)
                     .setSelectionFlags(C.SELECTION_FLAG_DEFAULT or C.SELECTION_FLAG_FORCED)
                     .build()
@@ -387,6 +408,63 @@ class PlayerActivity : BaseActivity() {
             }
         }
         started = true
+    }
+
+    /** In the closing credits (a segment running to the end), or past the end. */
+    private fun inEnding(p: ExoPlayer): Boolean {
+        if (p.playbackState == Player.STATE_ENDED) return true
+        val duration = p.duration.takeIf { it > 0 } ?: return false
+        val pos = p.currentPosition
+        return segments.any { it.type == "Outro" && it.endMs >= duration - 2000 && pos >= it.startMs }
+    }
+
+    /** "Next episode" banner with a 10 s countdown, during the closing credits or once the video ended. */
+    private fun updateNext() {
+        val p = player ?: return
+        val next = nextItem
+        val ending = next != null && Prefs.autoNext && inEnding(p)
+        if (!ending) {
+            nextDismissed = false
+            if (nextAt != 0L) hideNext()
+            return
+        }
+        if (nextDismissed) return
+        if (nextAt == 0L) {
+            nextAt = now() + 10_000
+            nextBanner.visibility = View.VISIBLE
+            if (!view.isControllerFullyVisible) nextBanner.requestFocus()
+        }
+        val left = ((nextAt - now() + 999) / 1000).coerceAtLeast(0)
+        if (left == 0L) { playNext(); return }
+        nextBanner.text = "Épisode suivant · ${next!!.name} — dans $left s"
+    }
+
+    private fun hideNext() {
+        nextAt = 0L
+        nextBanner.visibility = View.GONE
+    }
+
+    /** Opens the next episode in a new player (this one reports "stopped" and ends its transcode in onStop). */
+    private fun playNext() {
+        val next = nextItem ?: return
+        nextItem = null
+        hideNext()
+        player?.playWhenReady = false
+        val current = source
+        launch {
+            // Same languages as now, when the next file has them; else Jellyfin's remembered tracks / preferences.
+            val full = runCatching { Api.item(next.id) }.getOrNull()
+            val audioLang = current?.audio?.firstOrNull { it.index == audioIndex }?.language
+            val sub = current?.subtitles?.firstOrNull { it.index == subtitleIndex }
+            val audio = full?.audio?.firstOrNull { audioLang != null && it.language == audioLang }?.index
+            val subtitle = when {
+                subtitleIndex == -1 -> -1
+                sub?.language == null -> null
+                else -> full?.subtitles?.firstOrNull { it.language == sub.language && it.isForced == sub.isForced }?.index
+            }
+            play(full ?: next, fromStart = true, audio = audio, subtitle = subtitle)
+            finish()
+        }
     }
 
     /**
@@ -437,13 +515,40 @@ class PlayerActivity : BaseActivity() {
     private fun chooseSubtitle() {
         val src = source ?: return
         val subs = src.subtitles
-        val labels = listOf("Aucun") + subs.map { it.title }
+        // Offset only for subtitles ExoPlayer draws itself: burned ones are part of the server's video.
+        val shiftable = !Prefs.burnSubtitles && subs.firstOrNull { it.index == subtitleIndex }?.deliveryUrl != null
+        val labels = listOf("Aucun") + subs.map { it.title } + if (shiftable) listOf("Décalage : ${offsetLabel(subtitleOffsetMs)}") else emptyList()
         val current = subs.indexOfFirst { it.index == subtitleIndex } + 1
         choose("Sous-titres", labels, current, subtitle = if (Prefs.burnSubtitles) "Gravés dans la vidéo" else null) { which ->
+            if (which == subs.size + 1) return@choose chooseOffset()
             val idx = if (which == 0) -1 else subs[which - 1].index
             if (idx == subtitleIndex) return@choose
             subtitleIndex = idx
             reload()
+        }
+    }
+
+    private fun chooseOffset() {
+        val steps = listOf(-1000L, -500L, -100L, 0L, 100L, 500L, 1000L)
+        choose("Décalage des sous-titres", steps.map { "${offsetLabel(subtitleOffsetMs + it)}" + if (it == 0L) " (actuel)" else "" },
+            steps.indexOf(0L), subtitle = "Positif : les sous-titres arrivent plus tard") { which ->
+            if (steps[which] == 0L) return@choose
+            subtitleOffsetMs += steps[which]
+            reload()
+        }
+    }
+
+    private fun offsetLabel(ms: Long) = if (ms == 0L) "aucun" else "%+.1f s".format(java.util.Locale.FRANCE, ms / 1000.0)
+
+    private fun chooseAspect() {
+        val modes = listOf(
+            AspectRatioFrameLayout.RESIZE_MODE_FIT to "Adapter (image entière)",
+            AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Zoom (remplit l'écran, recadre)",
+            AspectRatioFrameLayout.RESIZE_MODE_FILL to "Étirer (remplit l'écran, déforme)",
+        )
+        choose("Image", modes.map { it.second }, modes.indexOfFirst { it.first == view.resizeMode }) { which ->
+            view.resizeMode = modes[which].first
+            Prefs.resizeMode = modes[which].first
         }
     }
 
@@ -462,7 +567,9 @@ class PlayerActivity : BaseActivity() {
         override fun onTracksChanged(tracks: Tracks) = applyAudioOverride(tracks)
 
         override fun onPlaybackStateChanged(state: Int) {
-            if (state == Player.STATE_ENDED) finish()
+            // With a next episode the countdown takes over (updateNext); Back from it closes the player.
+            if (state == Player.STATE_ENDED && (nextItem == null || !Prefs.autoNext || nextDismissed)) finish()
+            else if (state == Player.STATE_ENDED) updateNext()
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -499,6 +606,7 @@ class PlayerActivity : BaseActivity() {
                         Api.reportStopped(body)
                         App.dataVersion++
                         Api.stopEncoding(s.playSessionId)
+                        com.litefin.tv.tv.Channels.refresh(applicationContext)
                     }
                 }
             }
@@ -539,6 +647,14 @@ class PlayerActivity : BaseActivity() {
             consumedKey = event.keyCode
             return true
         }
+        if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && nextAt != 0L) {
+            // Back on the countdown: cancel it (at the very end, leave like before).
+            if (p?.playbackState == Player.STATE_ENDED) finish()
+            nextDismissed = true
+            hideNext()
+            consumedKey = KeyEvent.KEYCODE_BACK
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_BACK && view.isControllerFullyVisible) {
             view.hideController()
             consumedKey = KeyEvent.KEYCODE_BACK
@@ -557,6 +673,10 @@ class PlayerActivity : BaseActivity() {
                 // Center: skips the segment when the skip pill is up, else instant play/pause.
                 // Pausing also shows the controls (they stay up while paused).
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    if (nextAt != 0L) {
+                        playNext()
+                        return true
+                    }
                     if (skip.visibility == View.VISIBLE && skip.tag == null) {
                         skipCurrentSegment()
                         return true

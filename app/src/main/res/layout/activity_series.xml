@@ -24,6 +24,7 @@
                 android:layout_marginTop="16dp" android:orientation="horizontal">
                 <Button android:id="@+id/resume" style="@style/Btn.Primary" android:drawableStart="@drawable/ic_play" android:text="Reprendre" />
                 <Button android:id="@+id/played" style="@style/Chip" android:drawableStart="@drawable/ic_check" />
+                <Button android:id="@+id/favorite" style="@style/Chip" android:drawableStart="@drawable/ic_heart" />
             </LinearLayout>
 
             <TextView style="@style/Section" android:text="Saisons" />

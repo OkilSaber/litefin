@@ -17,7 +17,7 @@ class ApiException(val code: Int, msg: String) : IOException(msg)
 
 object Api {
     private const val CLIENT = "LiteFin"
-    private const val VERSION = "1.1.1"
+    private const val VERSION = "1.2.0"
     private val JSON = "application/json".toMediaType()
 
     val http: OkHttpClient = OkHttpClient.Builder()
@@ -151,10 +151,21 @@ object Api {
         return Item.list(get("/Shows/$seriesId/Episodes?userId=$user$s$l&$fields"))
     }
 
-    /** Resume position and watched state only, for refreshing a page that is already loaded. */
-    suspend fun userData(id: String): Pair<Long, Boolean> {
+    /** Resume position, watched and favorite state only, for refreshing a page that is already loaded. */
+    suspend fun userData(id: String): UserState {
         val o = get("/UserItems/$id/UserData?userId=$user")
-        return o.optLong("PlaybackPositionTicks") to o.optBoolean("Played")
+        return UserState(o.optLong("PlaybackPositionTicks"), o.optBoolean("Played"), o.optBoolean("IsFavorite"))
+    }
+
+    /**
+     * Episode after [currentId] in series order (the server crosses seasons). Specials are skipped unless
+     * the current episode is one.
+     */
+    suspend fun nextEpisode(seriesId: String, currentId: String): Item? {
+        val eps = Item.list(get("/Shows/$seriesId/Episodes?userId=$user&StartItemId=$currentId&Limit=6&$LIST_PARAMS"))
+        val current = eps.firstOrNull() ?: return null
+        val special = current.parentIndexNumber == 0
+        return eps.drop(1).firstOrNull { special || it.parentIndexNumber != 0 }
     }
 
     /** What the player needs besides the stream: chapters and trickplay, in one small request. */
@@ -219,6 +230,11 @@ object Api {
 
     suspend fun setPlayed(id: String, played: Boolean) {
         raw(if (played) "POST" else "DELETE", "/UserPlayedItems/$id?userId=$user")
+        com.litefin.tv.App.dataVersion++
+    }
+
+    suspend fun setFavorite(id: String, favorite: Boolean) {
+        raw(if (favorite) "POST" else "DELETE", "/UserFavoriteItems/$id?userId=$user")
         com.litefin.tv.App.dataVersion++
     }
 

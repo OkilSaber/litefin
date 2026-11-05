@@ -64,6 +64,7 @@
                 android:text="Chapitre suivant" android:visibility="gone" />
             <Button android:id="@+id/ctl_audio" style="@style/Chip" android:drawableStart="@drawable/ic_volume" android:text="Audio" />
             <Button android:id="@+id/ctl_subs" style="@style/Chip" android:drawableStart="@drawable/ic_cc" android:text="Sous-titres" />
+            <Button android:id="@+id/ctl_aspect" style="@style/Chip" android:drawableStart="@drawable/ic_aspect" android:text="Image" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>

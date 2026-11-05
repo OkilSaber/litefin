@@ -11,6 +11,7 @@
 
     <Button android:id="@+id/server" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/burn" style="@style/Btn" android:layout_marginBottom="10dp" />
+    <Button android:id="@+id/auto_next" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/lang" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/seek" style="@style/Btn" android:layout_marginBottom="10dp" />
     <Button android:id="@+id/bitrate" style="@style/Btn" android:layout_marginBottom="10dp" />

@@ -18,6 +18,7 @@ class SettingsActivity : BaseActivity() {
     private val bitrates = listOf(4_000_000, 8_000_000, 10_000_000, 15_000_000, 20_000_000, 40_000_000, 80_000_000)
 
     private lateinit var burn: Button
+    private lateinit var autoNext: Button
     private lateinit var lang: Button
     private lateinit var bitrate: Button
     private lateinit var seek: Button
@@ -26,12 +27,17 @@ class SettingsActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_settings)
         burn = findViewById(R.id.burn)
+        autoNext = findViewById(R.id.auto_next)
         lang = findViewById(R.id.lang)
         bitrate = findViewById(R.id.bitrate)
         seek = findViewById(R.id.seek)
 
         burn.setOnClickListener {
             Prefs.burnSubtitles = !Prefs.burnSubtitles
+            refresh()
+        }
+        autoNext.setOnClickListener {
+            Prefs.autoNext = !Prefs.autoNext
             refresh()
         }
         lang.setOnClickListener {
@@ -122,6 +128,7 @@ class SettingsActivity : BaseActivity() {
         findViewById<Button>(R.id.cache).text = "Vider le cache (%.1f Mo) et redémarrer".format(size / 1_048_576.0)
         findViewById<Button>(R.id.server).text = "Serveur : ${Prefs.server}"
         burn.text = "Toujours graver les sous-titres : " + if (Prefs.burnSubtitles) "OUI" else "NON"
+        autoNext.text = "Épisode suivant automatique : " + if (Prefs.autoNext) "OUI" else "NON"
         lang.text = "Langue des sous-titres : " + (languages.firstOrNull { it.first == Prefs.subtitleLang }?.second ?: Prefs.subtitleLang)
         seek.text = "Saut avant / arrière : ${Prefs.seekSeconds} s"
         bitrate.text = "Débit max : ${Prefs.maxBitrate / 1_000_000} Mb/s"

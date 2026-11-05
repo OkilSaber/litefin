@@ -45,6 +45,7 @@
                         <Button android:id="@+id/resume" style="@style/Btn.Primary" android:drawableStart="@drawable/ic_play" android:text="Lire" />
                         <Button android:id="@+id/play" style="@style/Chip" android:drawableStart="@drawable/ic_restart" android:text="Depuis le début" />
                         <Button android:id="@+id/played" style="@style/Chip" android:drawableStart="@drawable/ic_check" />
+                        <Button android:id="@+id/favorite" style="@style/Chip" android:drawableStart="@drawable/ic_heart" />
                     </LinearLayout>
                     <LinearLayout android:layout_width="wrap_content" android:layout_height="wrap_content"
                         android:layout_marginTop="10dp" android:orientation="horizontal">

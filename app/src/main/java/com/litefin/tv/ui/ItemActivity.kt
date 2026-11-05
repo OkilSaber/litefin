@@ -66,9 +66,15 @@ class ItemActivity : BaseActivity() {
             isActivated = current.played
             setOnClickListener { launch { Api.setPlayed(current.id, !current.played); load() } }
         }
+        bindFavorite(findViewById(R.id.favorite), current) { load() }
         findViewById<TextView>(R.id.meta).text = meta(it)
         updateTrackButtons()
         if (!loaded) findViewById<Button>(R.id.resume).requestFocus()
+        // Opened from the Android TV home screen: start playing right away (once).
+        if (!loaded && intent.getBooleanExtra("autoplay", false)) {
+            intent.removeExtra("autoplay")
+            play(it)
+        }
         loaded = true
         if (episode) loadNext(it)
     }

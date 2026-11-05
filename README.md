@@ -50,7 +50,16 @@ demande que les champs que l'écran affiche.
 - 🖼️ **Aperçu pendant l'avance rapide** : vignette *trickplay*, heure d'arrivée et écart parcouru (« +1:09 »). La
   lecture se met en pause pendant que tu cherches.
 - 🕘 **Heure de fin** recalculée en continu, même en pause.
-- Direct play quand la TV sait décoder, sinon transcodage HLS automatique (avec repli si le direct play échoue).
+- ▶️ **Épisode suivant automatique** : compte à rebours de 10 s pendant le générique de fin (ou à la fin de la vidéo),
+  avec les mêmes langues audio et sous-titres. OK pour lancer tout de suite, Retour pour rester. Désactivable dans les
+  Réglages.
+- 🎧 **Pistes mémorisées** : LiteFin suit les pistes que Jellyfin a retenues pour chaque épisode, même choisies depuis
+  une autre app, et la page de l'épisode affiche la piste qui sera vraiment utilisée.
+- 🖥️ **Format d'image** : adapter, zoomer (recadre) ou étirer, mémorisé pour toutes les vidéos.
+- ⏱️ **Décalage des sous-titres** (±0,1 à ±1 s) pour les sous-titres texte affichés par la TV, quand la gravure est
+  désactivée.
+- Direct play quand la TV sait décoder, sinon transcodage HLS automatique, avec repli si le direct play échoue ou
+  reste bloqué sur la première image.
 - Choix des pistes audio et sous-titres avant ou pendant la lecture, et saut avant/arrière réglable (5 à 30 s).
 - Avec les contrôles masqués, OK met en pause et ←/→ avance ou recule.
 
@@ -63,7 +72,11 @@ demande que les champs que l'écran affiche.
 - Accueil : Reprendre, À suivre, bibliothèques et ajouts récents.
 - Pages série, saison, épisode et film avec image de fond, logo, distribution, pistes et épisodes suivants.
 - **Appui long** sur n'importe quelle carte : reprendre, lire depuis le début, aller à la saison ou à la série,
-  marquer vu/non vu.
+  marquer vu/non vu, ajouter aux favoris.
+- ❤️ **Favoris** : depuis l'appui long ou la page d'un film, d'un épisode ou d'une série, et retrouvés via le filtre
+  « Favoris » des bibliothèques.
+- 📺 **Écran d'accueil Android TV** : « Reprendre » et « À suivre » apparaissent dans « Continuer à regarder » et dans
+  une chaîne LiteFin (Android 8+). Un clic ouvre directement l'épisode dans le bon profil et lance la lecture.
 - Bibliothèques avec **tri, filtres et genres**, mémorisés pour chaque bibliothèque.
 - Navigation au D-pad soignée : le focus ne s'échappe jamais d'une rangée, ↑/↓ retombent sur le début de la rangée,
   et les rangées ont une hauteur fixe.

@@ -132,6 +132,7 @@ abstract class BaseActivity : Activity() {
             .putExtra("id", item.id)
             .putExtra("title", item.fullTitle)
             .putExtra("startTicks", if (fromStart) 0L else item.positionTicks)
+            .putExtra("seriesId", item.seriesId)
         audio?.let { intent.putExtra("audio", it) }
         subtitle?.let { intent.putExtra("subtitle", it) }
         startActivity(intent)
@@ -176,11 +177,25 @@ abstract class BaseActivity : Activity() {
                 onItemChanged()
             }
         }
+        add(if (item.isFavorite) "Retirer des favoris" else "Ajouter aux favoris", com.litefin.tv.R.drawable.ic_heart) {
+            launch {
+                Api.setFavorite(item.id, !item.isFavorite)
+                toast(if (item.isFavorite) "Retiré des favoris" else "Ajouté aux favoris")
+                onItemChanged()
+            }
+        }
         val subtitle = when (item.type) {
             "Episode" -> listOfNotNull(item.seriesName, item.episodeCode.ifEmpty { null }).joinToString(" · ")
             else -> item.year?.toString()
         }
         SidePanel.show(this, item.name, subtitle, actions.map { it.first }) { which -> actions[which].second() }
+    }
+
+    /** Favorite chip of an item page; [reload] refreshes the page after the change. */
+    fun bindFavorite(button: android.widget.Button, item: Item, reload: () -> Unit) {
+        button.text = if (item.isFavorite) "Favori" else "Ajouter aux favoris"
+        button.isActivated = item.isFavorite
+        button.setOnClickListener { launch { Api.setFavorite(item.id, !item.isFavorite); reload() } }
     }
 
     /** In-progress episode, else next up, else the first one. */

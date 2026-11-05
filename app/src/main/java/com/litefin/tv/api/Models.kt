@@ -30,6 +30,9 @@ class Segment(val type: String, val startMs: Long, val endMs: Long) {
 
 class Chapter(val name: String, val startMs: Long)
 
+/** Per-user state of an item, for refreshing a page that is already loaded. */
+class UserState(val positionTicks: Long, val played: Boolean, val favorite: Boolean)
+
 class Person(val id: String, val name: String, val role: String?, val type: String, val imageTag: String?)
 
 data class Item(
@@ -47,6 +50,7 @@ data class Item(
     val runTimeTicks: Long,
     val positionTicks: Long,
     val played: Boolean,
+    val isFavorite: Boolean,
     val unplayedCount: Int,
     val imageTag: String?,
     val collectionType: String?,
@@ -122,6 +126,7 @@ data class Item(
                 runTimeTicks = o.optLong("RunTimeTicks"),
                 positionTicks = ud?.optLong("PlaybackPositionTicks") ?: 0L,
                 played = ud?.optBoolean("Played") ?: false,
+                isFavorite = ud?.optBoolean("IsFavorite") ?: false,
                 unplayedCount = ud?.optInt("UnplayedItemCount") ?: 0,
                 imageTag = tags?.str("Primary"),
                 collectionType = o.str("CollectionType"),

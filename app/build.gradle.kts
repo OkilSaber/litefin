@@ -10,8 +10,8 @@ android {
         applicationId = "com.litefin.tv"
         minSdk = 23
         targetSdk = 36
-        versionCode = 3 // must grow on every release, or the in-app update is refused
-        versionName = "1.1.1"
+        versionCode = 4 // must grow on every release, or the in-app update is refused
+        versionName = "1.2.0"
         ndk { abiFilters += listOf("armeabi-v7a", "arm64-v8a") }
     }
 
@@ -41,4 +41,6 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
+    implementation("androidx.tvprovider:tvprovider:1.1.0")
+    testImplementation("junit:junit:4.13.2")
 }

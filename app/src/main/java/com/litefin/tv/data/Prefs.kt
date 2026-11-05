@@ -85,6 +85,16 @@ object Prefs {
         get() = sp.getString("subtitleLang", "")!!
         set(v) = sp.edit().putString("subtitleLang", v).apply()
 
+    /** At the end of an episode (or its credits), count down and play the next one. On by default. */
+    var autoNext: Boolean
+        get() = sp.getBoolean("autoNext", true)
+        set(v) = sp.edit().putBoolean("autoNext", v).apply()
+
+    /** PlayerView resize mode (AspectRatioFrameLayout.RESIZE_MODE_*), shared by every video. 0 = fit. */
+    var resizeMode: Int
+        get() = sp.getInt("resizeMode", 0)
+        set(v) = sp.edit().putInt("resizeMode", v).apply()
+
     /** Jump applied by left/right (and rewind/fast-forward keys) during playback. */
     var seekSeconds: Int
         get() = sp.getInt("seekSeconds", 10)
